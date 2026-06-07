@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Don't run middleware on auth callback
+  if (request.nextUrl.pathname.startsWith('/auth')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -12,13 +17,12 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setAll(cookiesToSet: any[]) {
-          cookiesToSet.forEach(({ name, value }: { name: string; value: string }) =>
+        setAll(cookiesToSet: any) {
+          cookiesToSet.forEach(({ name, value }: any) =>
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options?: any }) =>
+          cookiesToSet.forEach(({ name, value, options }: any) =>
             supabaseResponse.cookies.set(name, value, options)
           )
         },
