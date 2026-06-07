@@ -2,16 +2,17 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
+
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://tripmind-six.vercel.app'
 
   if (code) {
     const supabase = createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Check if user has completed onboarding
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profile } = await supabase
@@ -21,12 +22,12 @@ export async function GET(request: Request) {
           .single()
 
         if (!profile?.onboarding_complete) {
-          return NextResponse.redirect(`${origin}/onboarding`)
+          return NextResponse.redirect(`${siteUrl}/onboarding`)
         }
       }
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${siteUrl}${next}`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  return NextResponse.redirect(`${siteUrl}/login?error=auth_failed`)
 }
