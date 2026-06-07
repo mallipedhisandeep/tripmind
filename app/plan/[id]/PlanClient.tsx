@@ -117,7 +117,7 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
         setStage(5)
         setTimeout(() => {
           setPlan(data.plan)
-          setRegenCount(c => c + 1)
+          setRegenCount((c: number) => c + 1)
           setLoading(false)
         }, 500)
       } catch (err: any) {
