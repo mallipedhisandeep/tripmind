@@ -93,3 +93,5 @@ tripmind/
 ---
 
 Built by Sandeep · TripMind 2025
+
+for indian travellers
