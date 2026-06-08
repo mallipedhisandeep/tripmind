@@ -1,196 +1,205 @@
 'use client'
-
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Plus, MapPin, Calendar, LogOut, User, Settings, ChevronRight, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, MapPin, Calendar, Clock, ChevronRight, LogOut, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
-const QUICK_ROUTES = [
+const QUICK = [
   { from: 'Hyderabad', to: 'Tirupati', emoji: '🛕' },
   { from: 'Mumbai', to: 'Goa', emoji: '🏖️' },
   { from: 'Delhi', to: 'Agra', emoji: '🕌' },
   { from: 'Bangalore', to: 'Mysore', emoji: '🏰' },
 ]
 
-const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  draft: { bg: 'rgba(100,100,120,0.15)', color: '#64748b', label: 'Draft' },
-  saved: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', label: 'Saved' },
-  completed: { bg: 'rgba(16,185,129,0.12)', color: '#10b981', label: 'Completed ✓' },
+const ST: Record<string, { bg: string; color: string; label: string }> = {
+  draft:     { bg: 'rgba(80,80,106,0.2)',    color: '#9090b0', label: 'Draft' },
+  saved:     { bg: 'rgba(232,160,32,0.12)',  color: '#e8a020', label: 'Saved' },
+  completed: { bg: 'rgba(52,211,153,0.12)',  color: '#34d399', label: 'Done ✓' },
 }
 
 export default function DashboardClient({ profile, trips }: { profile: any; trips: any[] }) {
   const router = useRouter()
   const supabase = createClient()
   const [showProfile, setShowProfile] = useState(false)
-  const firstName = profile?.full_name?.split(' ')[0] || 'Traveller'
+  const name = profile?.full_name?.split(' ')[0] || 'Traveller'
+  const hour = new Date().getHours()
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  const handleSignOut = async () => {
+  const signOut = async () => {
     await supabase.auth.signOut()
     toast.success('Signed out')
-    router.push('/')
+    window.location.href = '/login'
   }
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <div className="glow-1" /><div className="glow-2" />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: 'hidden' }}>
+      <div className="amb-1" /><div className="amb-2" />
 
       {/* NAV */}
-      <nav className="glass sticky top-0 z-50 flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-        <div className="font-display text-lg font-bold gradient-text">✈ TripMind</div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowProfile(p => !p)}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all"
-            style={{ background: showProfile ? 'var(--surface2)' : 'transparent', border: '1px solid transparent', borderColor: showProfile ? 'var(--border)' : 'transparent' }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} className="w-7 h-7 rounded-full" alt="" />
-              : <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                  style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#080810' }}>
-                  {firstName[0]}
-                </div>
-            }
-            <span className="text-sm font-medium hidden sm:block" style={{ color: 'var(--text-2)' }}>{firstName}</span>
-          </button>
-        </div>
+      <nav className="glass" style={{ position: 'sticky', top: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>
+        <span className="font-display gold" style={{ fontSize: 20, fontWeight: 700 }}>✈ TripMind</span>
+        <button onClick={() => setShowProfile(p => !p)}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 12, background: showProfile ? 'var(--s2)' : 'transparent', border: `1px solid ${showProfile ? 'var(--border)' : 'transparent'}`, cursor: 'pointer', transition: 'all 0.15s' }}>
+          {profile?.avatar_url
+            ? <img src={profile.avatar_url} style={{ width: 28, height: 28, borderRadius: '50%' }} alt="" />
+            : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#e8a020,#f5bc4a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#0c0c0f' }}>{name[0]}</div>}
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--t2)' }} className="hidden sm:block">{name}</span>
+        </button>
       </nav>
 
-      {/* PROFILE DROPDOWN */}
-      {showProfile && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="fixed top-16 right-4 z-50 w-72 card shadow-2xl"
-          style={{ border: '1px solid var(--border2)', padding: 0, overflow: 'hidden' }}>
-          {/* Profile header */}
-          <div className="p-5 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface2)' }}>
-            <div className="flex items-center gap-3">
-              {profile?.avatar_url
-                ? <img src={profile.avatar_url} className="w-12 h-12 rounded-full" alt="" />
-                : <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold"
-                    style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#080810' }}>
-                    {firstName[0]}
+      {/* PROFILE PANEL */}
+      <AnimatePresence>
+        {showProfile && (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowProfile(false)} />
+            <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97 }} transition={{ duration: 0.18 }}
+              style={{ position: 'fixed', top: 64, right: 16, zIndex: 50, width: 288, background: 'var(--s1)', border: '1px solid var(--border2)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+
+              {/* Header */}
+              <div style={{ padding: '20px', background: 'var(--s2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                {profile?.avatar_url
+                  ? <img src={profile.avatar_url} style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid var(--gold)', }} alt="" />
+                  : <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#e8a020,#f5bc4a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: '#0c0c0f', border: '2px solid rgba(232,160,32,0.3)' }}>{name[0]}</div>}
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--t1)' }}>{profile?.full_name || name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>{profile?.email}</div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border)' }}>
+                {[
+                  { v: trips.length, l: 'Trips' },
+                  { v: profile?.home_city || '—', l: 'Base' },
+                  { v: profile?.travel_style || '—', l: 'Style' },
+                ].map((s, i) => (
+                  <div key={i} style={{ padding: '14px 0', textAlign: 'center', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--t1)', textTransform: 'capitalize' }}>{s.v}</div>
+                    <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 2, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{s.l}</div>
                   </div>
-              }
-              <div>
-                <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{profile?.full_name || firstName}</div>
-                <div className="text-xs" style={{ color: 'var(--text-2)' }}>{profile?.email}</div>
-              </div>
-            </div>
-          </div>
-          {/* Stats */}
-          <div className="grid grid-cols-3 border-b" style={{ borderColor: 'var(--border)' }}>
-            {[
-              { label: 'Trips', value: trips.length },
-              { label: 'City', value: profile?.home_city || '—' },
-              { label: 'Style', value: profile?.travel_style || '—' },
-            ].map(s => (
-              <div key={s.label} className="py-3 text-center border-r last:border-0" style={{ borderColor: 'var(--border)' }}>
-                <div className="text-base font-bold capitalize" style={{ color: 'var(--text)' }}>{s.value}</div>
-                <div className="text-xs" style={{ color: 'var(--text-3)' }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-          {/* Interests */}
-          {profile?.interests?.length > 0 && (
-            <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <div className="text-xs mb-2 font-semibold" style={{ color: 'var(--text-3)' }}>INTERESTS</div>
-              <div className="flex flex-wrap gap-1.5">
-                {profile.interests.slice(0, 6).map((i: string) => (
-                  <span key={i} className="tag text-xs" style={{ background: 'var(--amber-dim)', color: 'var(--amber)' }}>{i}</span>
                 ))}
               </div>
-            </div>
-          )}
-          {/* Actions */}
-          <div className="p-2">
-            <button onClick={handleSignOut}
-              className="btn w-full py-2.5 px-3 rounded-xl text-sm justify-start gap-2"
-              style={{ background: 'transparent', color: 'var(--text-2)' }}>
-              <LogOut className="w-4 h-4" /> Sign out
-            </button>
-          </div>
-        </motion.div>
-      )}
 
-      {showProfile && <div className="fixed inset-0 z-40" onClick={() => setShowProfile(false)} />}
+              {/* Interests */}
+              {profile?.interests?.length > 0 && (
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div className="label" style={{ marginBottom: 8 }}>Interests</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {profile.interests.slice(0, 8).map((i: string) => (
+                      <span key={i} style={{ padding: '3px 10px', borderRadius: 99, background: 'var(--gold-dim)', color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>{i}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-      <div className="relative z-10 max-w-xl mx-auto px-5 pb-24 pt-8">
+              {/* Transport & Budget */}
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 16 }}>
+                <div>
+                  <div className="label" style={{ marginBottom: 4 }}>Transport</div>
+                  <div style={{ fontSize: 13, color: 'var(--t1)', textTransform: 'capitalize' }}>{profile?.preferred_transport || '—'}</div>
+                </div>
+                <div>
+                  <div className="label" style={{ marginBottom: 4 }}>Home City</div>
+                  <div style={{ fontSize: 13, color: 'var(--t1)' }}>{profile?.home_city || '—'}</div>
+                </div>
+              </div>
+
+              {/* Sign out */}
+              <div style={{ padding: 8 }}>
+                <button onClick={signOut} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'transparent', border: 'none', color: 'var(--t2)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all 0.12s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--s2)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  <LogOut style={{ width: 14, height: 14 }} /> Sign out
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* MAIN */}
+      <div style={{ position: 'relative', zIndex: 10, maxWidth: 600, margin: '0 auto', padding: '28px 20px 100px' }}>
 
         {/* Greeting */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <p className="text-sm mb-1" style={{ color: 'var(--text-3)' }}>{greeting},</p>
-          <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--text)' }}>{firstName} 👋</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 28 }}>
+          <p style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 4, letterSpacing: '0.5px' }}>{greet},</p>
+          <h1 className="font-display" style={{ fontSize: 30, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.2 }}>{name} 👋</h1>
+          <p style={{ fontSize: 13, color: 'var(--t2)', marginTop: 6 }}>
             {trips.length === 0 ? 'Plan your first trip below.' : `${trips.length} trip${trips.length > 1 ? 's' : ''} planned so far.`}
           </p>
         </motion.div>
 
         {/* New Trip CTA */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }} style={{ marginBottom: 24 }}>
           <button onClick={() => router.push('/plan/new')}
-            className="w-full p-5 rounded-2xl text-left group transition-all"
-            style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(249,115,22,0.06))', border: '1px solid rgba(245,158,11,0.2)' }}>
-            <div className="flex items-center justify-between">
+            style={{ width: '100%', padding: 20, borderRadius: 20, textAlign: 'left', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(232,160,32,0.07), rgba(45,212,191,0.04))', border: '1px solid rgba(232,160,32,0.2)', transition: 'all 0.18s' }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(232,160,32,0.4)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(232,160,32,0.2)')}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Plus className="w-4 h-4" style={{ color: 'var(--amber)' }} />
-                  <span className="text-xs font-bold tracking-widest uppercase" style={{ color: 'var(--amber)' }}>New Trip</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <Plus style={{ width: 14, height: 14, color: 'var(--gold)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--gold)' }}>New Trip</span>
                 </div>
-                <div className="font-display text-xl font-bold" style={{ color: 'var(--text)' }}>Where to next?</div>
-                <p className="text-sm mt-0.5" style={{ color: 'var(--text-2)' }}>Complete plan in 20 seconds</p>
+                <div className="font-display" style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)' }}>Where to next?</div>
+                <p style={{ fontSize: 12, color: 'var(--t2)', marginTop: 3 }}>Full plan in 20 seconds</p>
               </div>
-              <div className="w-11 h-11 rounded-full flex items-center justify-center text-lg group-hover:scale-110 transition-transform"
-                style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#080810' }}>✨</div>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#e8a020,#f5bc4a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✨</div>
             </div>
           </button>
         </motion.div>
 
-        {/* Quick Routes */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-8">
-          <p className="label mb-3">Quick Plan</p>
-          <div className="grid grid-cols-2 gap-2">
-            {QUICK_ROUTES.map(r => (
-              <button key={r.to}
-                onClick={() => router.push(`/plan/new?from=${encodeURIComponent(r.from)}&to=${encodeURIComponent(r.to)}`)}
-                className="card card-hover p-4 text-left">
-                <div className="text-xl mb-1.5">{r.emoji}</div>
-                <div className="text-xs" style={{ color: 'var(--text-3)' }}>{r.from}</div>
-                <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>→ {r.to}</div>
+        {/* Quick routes */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} style={{ marginBottom: 28 }}>
+          <p className="label" style={{ marginBottom: 10 }}>Quick Plan</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {QUICK.map(q => (
+              <button key={q.to} onClick={() => router.push(`/plan/new?from=${encodeURIComponent(q.from)}&to=${encodeURIComponent(q.to)}`)}
+                style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 16, padding: '14px', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}>
+                <div style={{ fontSize: 22, marginBottom: 6 }}>{q.emoji}</div>
+                <div style={{ fontSize: 10, color: 'var(--t3)' }}>{q.from}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginTop: 1 }}>→ {q.to}</div>
               </button>
             ))}
           </div>
         </motion.div>
 
-        {/* Your Trips */}
+        {/* Trip history */}
         {trips.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
-            <p className="label mb-3">Your Trips</p>
-            <div className="flex flex-col gap-2.5">
-              {trips.map((trip: any) => {
-                const s = STATUS_STYLES[trip.status] || STATUS_STYLES.draft
+            <p className="label" style={{ marginBottom: 10 }}>Your Trips</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {trips.map((t: any) => {
+                const s = ST[t.status] || ST.draft
                 return (
-                  <button key={trip.id} onClick={() => router.push(`/plan/${trip.id}`)}
-                    className="card card-hover p-4 text-left flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--amber)' }} />
-                        <span className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>
-                          {trip.form_data?.from} → {trip.form_data?.to}
+                  <button key={t.id} onClick={() => router.push(`/plan/${t.id}`)}
+                    style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, transition: 'all 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border2)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                        <MapPin style={{ width: 12, height: 12, color: 'var(--gold)', flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.form_data?.from} → {t.form_data?.to}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-3)' }}>
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{trip.form_data?.days}d</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(trip.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--t3)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Calendar style={{ width: 10, height: 10 }} />{t.form_data?.days}d
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock style={{ width: 10, height: 10 }} />
+                          {new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="tag text-xs" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-                      <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-3)' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 99, background: s.bg, color: s.color, fontSize: 11, fontWeight: 700 }}>{s.label}</span>
+                      <ChevronRight style={{ width: 14, height: 14, color: 'var(--t3)' }} />
                     </div>
                   </button>
                 )
@@ -200,11 +209,10 @@ export default function DashboardClient({ profile, trips }: { profile: any; trip
         )}
 
         {trips.length === 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-            className="text-center py-14">
-            <div className="text-5xl mb-3">🗺️</div>
-            <div className="font-semibold text-sm mb-1" style={{ color: 'var(--text-2)' }}>No trips yet</div>
-            <p className="text-xs" style={{ color: 'var(--text-3)' }}>Plan your first trip and it will appear here.</p>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} style={{ textAlign: 'center', paddingTop: 48 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🗺️</div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--t2)' }}>No trips yet</div>
+            <p style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>Plan your first trip above.</p>
           </motion.div>
         )}
       </div>
