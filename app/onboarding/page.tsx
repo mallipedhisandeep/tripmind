@@ -1,42 +1,34 @@
 'use client'
-
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
 const INTERESTS = ['Temples','Beaches','Mountains','Food','Adventure','Nature','Museums','Shopping','Monuments','Wildlife','Waterfalls','Forts']
-const TRAVEL_WITH = [
-  { value: 'solo', label: 'Solo', emoji: '🧍' },
-  { value: 'couple', label: 'Couple', emoji: '👫' },
-  { value: 'friends', label: 'Friends', emoji: '👯' },
-  { value: 'family_kids', label: 'Family + Kids', emoji: '👨‍👩‍👧' },
-  { value: 'family_elders', label: 'Family + Elders', emoji: '👴' },
+const WITH = [
+  { v: 'solo', l: 'Solo', e: '🧍' },
+  { v: 'couple', l: 'Couple', e: '👫' },
+  { v: 'friends', l: 'Friends', e: '👯' },
+  { v: 'family_kids', l: 'Family + Kids', e: '👨‍👩‍👧' },
+  { v: 'family_elders', l: 'Family + Elders', e: '👴' },
 ]
 const TRANSPORT = ['Train','Flight','Bus','Car','Any']
 const STYLES = [
-  { value: 'budget', label: 'Budget', desc: 'Under ₹5k/person', emoji: '💰' },
-  { value: 'moderate', label: 'Moderate', desc: '₹5k–₹15k/person', emoji: '✈️' },
-  { value: 'comfortable', label: 'Comfortable', desc: '₹15k–₹30k/person', emoji: '🌟' },
-  { value: 'premium', label: 'Premium', desc: 'Above ₹30k/person', emoji: '💎' },
+  { v: 'budget', l: 'Budget', d: 'Under ₹5k/person', e: '💰' },
+  { v: 'moderate', l: 'Moderate', d: '₹5k–₹15k/person', e: '✈️' },
+  { v: 'comfortable', l: 'Comfortable', d: '₹15k–₹30k/person', e: '🌟' },
+  { v: 'premium', l: 'Premium', d: 'Above ₹30k/person', e: '💎' },
 ]
-const STEPS = 5
 
 export default function OnboardingPage() {
-  const router = useRouter()
   const supabase = createClient()
   const [step, setStep] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
-    home_city: '', travel_style: '', group_type: '',
-    interests: [] as string[], preferred_transport: '',
-  })
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ home_city: '', travel_style: '', group_type: '', interests: [] as string[], preferred_transport: '' })
 
-  const toggle = (key: 'interests', val: string) =>
-    setForm(f => ({ ...f, [key]: f[key].includes(val) ? f[key].filter(x => x !== val) : [...f[key], val] }))
+  const toggle = (val: string) => setForm(f => ({ ...f, interests: f.interests.includes(val) ? f.interests.filter(x => x !== val) : [...f.interests, val] }))
 
-  const canNext = () => {
+  const ok = () => {
     if (step === 0) return form.home_city.trim().length > 0
     if (step === 1) return !!form.travel_style
     if (step === 2) return !!form.group_type
@@ -45,9 +37,9 @@ export default function OnboardingPage() {
     return true
   }
 
-  const handleNext = async () => {
-    if (step < STEPS - 1) { setStep(s => s + 1); return }
-    setLoading(true)
+  const next = async () => {
+    if (step < 4) { setStep(s => s + 1); return }
+    setSaving(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
@@ -55,118 +47,108 @@ export default function OnboardingPage() {
         id: user.id, email: user.email,
         full_name: user.user_metadata?.full_name || '',
         avatar_url: user.user_metadata?.avatar_url || '',
-        home_city: form.home_city, travel_style: form.travel_style,
-        group_type: form.group_type, interests: form.interests,
+        ...form,
         preferred_transport: form.preferred_transport.toLowerCase(),
-        onboarding_complete: true, updated_at: new Date().toISOString(),
+        onboarding_complete: true,
+        updated_at: new Date().toISOString(),
       })
       if (error) throw error
-      toast.success('All set!')
-      router.push('/dashboard')
-    } catch { toast.error('Something went wrong'); setLoading(false) }
+      toast.success('Profile saved!')
+      window.location.href = '/dashboard'
+    } catch { toast.error('Something went wrong'); setSaving(false) }
   }
 
-  const pct = (step / (STEPS - 1)) * 100
+  const pct = (step / 4) * 100
+
+  const sel = (active: boolean) => ({
+    border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+    background: active ? 'var(--gold-dim)' : 'var(--s2)',
+    borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s', width: '100%',
+  })
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 relative" style={{ background: 'var(--bg)' }}>
-      <div className="glow-1" /><div className="glow-2" />
-      <div className="w-full max-w-md relative z-10">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+      <div className="amb-1" /><div className="amb-2" />
+      <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 10 }}>
 
         {/* Progress */}
-        <div className="mb-8">
-          <div className="flex justify-between text-xs mb-2" style={{ color: 'var(--text-3)' }}>
-            <span>Setting up your profile</span><span>{step + 1}/{STEPS}</span>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--t3)', marginBottom: 8 }}>
+            <span>Setting up your profile</span><span>{step + 1}/5</span>
           </div>
-          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-            <motion.div className="h-full rounded-full" animate={{ width: `${pct}%` }} transition={{ duration: 0.3 }}
-              style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)' }} />
+          <div style={{ height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+            <motion.div animate={{ width: `${pct}%` }} transition={{ duration: 0.3 }}
+              style={{ height: '100%', background: 'linear-gradient(90deg,#e8a020,#f5bc4a)', borderRadius: 99 }} />
           </div>
         </div>
 
         <AnimatePresence mode="wait">
-          {step === 0 && (
-            <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="card" style={{ padding: 28 }}>
-              <h2 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>Where are you based?</h2>
-              <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>We'll use this to suggest the best routes from your city.</p>
-              <label className="label">Home city</label>
-              <input className="input" placeholder="e.g. Hyderabad, Mumbai, Delhi..."
-                value={form.home_city} onChange={e => setForm(f => ({ ...f, home_city: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && canNext() && handleNext()} autoFocus />
-            </motion.div>
-          )}
+          <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.22 }}
+            style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 24, padding: 28 }}>
 
-          {step === 1 && (
-            <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="card" style={{ padding: 28 }}>
-              <h2 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>Travel style?</h2>
-              <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>We'll match hotels and transport to your budget.</p>
-              <div className="flex flex-col gap-2">
+            {step === 0 && <>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>Where are you based?</h2>
+              <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 20 }}>We'll suggest the best routes from your city.</p>
+              <label className="label">Home city</label>
+              <input className="input" placeholder="e.g. Hyderabad, Mumbai, Delhi..." value={form.home_city}
+                onChange={e => setForm(f => ({ ...f, home_city: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && ok() && next()} autoFocus />
+            </>}
+
+            {step === 1 && <>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>Your travel style?</h2>
+              <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 20 }}>We'll match hotels and transport to your budget.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {STYLES.map(s => (
-                  <button key={s.value} onClick={() => setForm(f => ({ ...f, travel_style: s.value }))}
-                    className="flex items-center gap-4 p-4 rounded-xl border text-left transition-all"
-                    style={{ border: form.travel_style === s.value ? '1.5px solid var(--amber)' : '1px solid var(--border)', background: form.travel_style === s.value ? 'var(--amber-dim)' : 'var(--surface2)' }}>
-                    <span className="text-2xl">{s.emoji}</span>
-                    <div>
-                      <div className="text-sm font-semibold" style={{ color: form.travel_style === s.value ? 'var(--amber)' : 'var(--text)' }}>{s.label}</div>
-                      <div className="text-xs" style={{ color: 'var(--text-2)' }}>{s.desc}</div>
+                  <button key={s.v} onClick={() => setForm(f => ({ ...f, travel_style: s.v }))} style={sel(form.travel_style === s.v)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 22 }}>{s.e}</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: form.travel_style === s.v ? 'var(--gold)' : 'var(--t1)' }}>{s.l}</div>
+                        <div style={{ fontSize: 12, color: 'var(--t2)' }}>{s.d}</div>
+                      </div>
                     </div>
                   </button>
                 ))}
               </div>
-            </motion.div>
-          )}
+            </>}
 
-          {step === 2 && (
-            <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="card" style={{ padding: 28 }}>
-              <h2 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>Who do you travel with?</h2>
-              <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>Plans adapt for kids, elders, or adventure groups.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {TRAVEL_WITH.map(t => (
-                  <button key={t.value} onClick={() => setForm(f => ({ ...f, group_type: t.value }))}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl border transition-all"
-                    style={{ border: form.group_type === t.value ? '1.5px solid var(--amber)' : '1px solid var(--border)', background: form.group_type === t.value ? 'var(--amber-dim)' : 'var(--surface2)' }}>
-                    <span className="text-3xl">{t.emoji}</span>
-                    <span className="text-xs font-semibold" style={{ color: form.group_type === t.value ? 'var(--amber)' : 'var(--text-2)' }}>{t.label}</span>
+            {step === 2 && <>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>Who do you travel with?</h2>
+              <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 20 }}>Plans adapt for kids, elders or adventure groups.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {WITH.map(t => (
+                  <button key={t.v} onClick={() => setForm(f => ({ ...f, group_type: t.v }))} style={{ ...sel(form.group_type === t.v), display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 12px' }}>
+                    <span style={{ fontSize: 28, marginBottom: 6 }}>{t.e}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: form.group_type === t.v ? 'var(--gold)' : 'var(--t2)' }}>{t.l}</span>
                   </button>
                 ))}
               </div>
-            </motion.div>
-          )}
+            </>}
 
-          {step === 3 && (
-            <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="card" style={{ padding: 28 }}>
-              <h2 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>What do you love?</h2>
-              <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>Pick everything that excites you.</p>
-              <div className="flex flex-wrap gap-2">
-                {INTERESTS.map(i => (
-                  <button key={i} onClick={() => toggle('interests', i)} className={`chip ${form.interests.includes(i) ? 'active' : ''}`}>{i}</button>
-                ))}
+            {step === 3 && <>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>What do you love?</h2>
+              <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 20 }}>Pick everything that excites you.</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {INTERESTS.map(i => <button key={i} onClick={() => toggle(i)} className={`chip ${form.interests.includes(i) ? 'active' : ''}`}>{i}</button>)}
               </div>
-              {form.interests.length > 0 && <p className="text-xs mt-3" style={{ color: 'var(--amber)' }}>{form.interests.length} selected</p>}
-            </motion.div>
-          )}
+              {form.interests.length > 0 && <p style={{ color: 'var(--gold)', fontSize: 11, marginTop: 10 }}>{form.interests.length} selected</p>}
+            </>}
 
-          {step === 4 && (
-            <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="card" style={{ padding: 28 }}>
-              <h2 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>Preferred transport?</h2>
-              <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>We'll recommend this by default on every trip.</p>
-              <div className="flex flex-wrap gap-2">
-                {TRANSPORT.map(t => (
-                  <button key={t} onClick={() => setForm(f => ({ ...f, preferred_transport: t }))}
-                    className={`chip ${form.preferred_transport === t ? 'active' : ''}`}>{t}</button>
-                ))}
+            {step === 4 && <>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>Preferred transport?</h2>
+              <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 20 }}>We'll recommend this by default on every trip.</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {TRANSPORT.map(t => <button key={t} onClick={() => setForm(f => ({ ...f, preferred_transport: t }))} className={`chip ${form.preferred_transport === t ? 'active' : ''}`}>{t}</button>)}
               </div>
-            </motion.div>
-          )}
+            </>}
+          </motion.div>
         </AnimatePresence>
 
-        <div className={`flex gap-3 mt-4 ${step === 0 ? 'justify-end' : ''}`}>
-          {step > 0 && (
-            <button onClick={() => setStep(s => s - 1)} className="btn btn-ghost flex-1 py-3">← Back</button>
-          )}
-          <button onClick={handleNext} disabled={!canNext() || loading}
-            className="btn btn-primary flex-1 py-3 disabled:opacity-40">
-            {loading ? 'Saving...' : step === STEPS - 1 ? 'Finish Setup ✨' : 'Next →'}
+        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          {step > 0 && <button onClick={() => setStep(s => s - 1)} className="btn-ghost" style={{ flex: 1, padding: '13px' }}>← Back</button>}
+          <button onClick={next} disabled={!ok() || saving} className="btn-gold" style={{ flex: 1, padding: '13px', fontSize: 14, opacity: (!ok() || saving) ? 0.4 : 1 }}>
+            {saving ? 'Saving...' : step === 4 ? 'Finish Setup ✨' : 'Next →'}
           </button>
         </div>
       </div>
