@@ -2,12 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // Never intercept auth routes
-  if (
-    request.nextUrl.pathname.startsWith('/auth') ||
-    request.nextUrl.pathname.startsWith('/_next') ||
-    request.nextUrl.pathname.includes('.')
-  ) {
+  const path = request.nextUrl.pathname
+
+  // Never intercept auth routes or static files
+  if (path.startsWith('/auth') || path.startsWith('/_next') || path.includes('.')) {
     return NextResponse.next()
   }
 
@@ -32,24 +30,26 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const protectedRoutes = ['/dashboard', '/plan', '/onboarding']
-  const isProtected = protectedRoutes.some(r => request.nextUrl.pathname.startsWith(r))
-
-  if (!user && isProtected) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+  // Root always goes to login (or dashboard if logged in)
+  if (path === '/') {
+    if (user) return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && request.nextUrl.pathname === '/login') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // Protected routes
+  const protected_ = ['/dashboard', '/plan', '/onboarding']
+  if (!user && protected_.some(r => path.startsWith(r))) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Already logged in, don't show login
+  if (user && path === '/login') {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|manifest.json).*)'],
 }
