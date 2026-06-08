@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, RefreshCw, ExternalLink, MapPin, Train, Hotel, Utensils, Lightbulb, AlertTriangle, Cloud } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GeneratedPlan } from '@/types'
+import { createClient } from '@/lib/supabase/client'
 
 const LOADING_STAGES = [
   'Checking train availability...',
@@ -96,10 +97,14 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
 
     animateProgress(async () => {
       try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { toast.error('Session expired. Please login again.'); setLoading(false); return }
+
         const res = await fetch('/api/generate-plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripId: trip.id }),
+          body: JSON.stringify({ tripId: trip.id, accessToken: session.access_token }),
         })
 
         const data = await res.json()
