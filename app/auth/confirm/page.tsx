@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Suspense } from 'react'
 
 function ConfirmInner() {
   const router = useRouter()
@@ -12,41 +11,51 @@ function ConfirmInner() {
 
   useEffect(() => {
     const handleConfirm = async () => {
-      const code = searchParams.get('code')
-      if (!code) {
-        router.push('/login?error=no_code')
-        return
-      }
-
       const supabase = createClient()
 
+      // Handle both OAuth code and email magic link token_hash
+      const code = searchParams.get('code')
+      const tokenHash = searchParams.get('token_hash')
+      const type = searchParams.get('type')
+
       try {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-
-        if (error) {
-          console.error('Auth error:', error)
-          router.push(`/login?error=${encodeURIComponent(error.message)}`)
-          return
-        }
-
-        if (!data.user) {
-          router.push('/login?error=no_user')
-          return
-        }
-
-        setStatus('Setting up your profile...')
-
-        // Check onboarding
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('onboarding_complete')
-          .eq('id', data.user.id)
-          .single()
-
-        if (!profile?.onboarding_complete) {
-          router.push('/onboarding')
+        if (tokenHash && type) {
+          // Email OTP / Magic link
+          setStatus('Verifying your email link...')
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as any,
+          })
+          if (error) {
+            console.error('OTP verify error:', error)
+            router.push(`/login?error=${encodeURIComponent(error.message)}`)
+            return
+          }
+          if (data.user) {
+            setStatus('Setting up your profile...')
+            await redirectUser(supabase, data.user.id)
+          }
+        } else if (code) {
+          // Google OAuth code
+          setStatus('Completing Google sign in...')
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          if (error) {
+            console.error('Exchange error:', error)
+            router.push(`/login?error=${encodeURIComponent(error.message)}`)
+            return
+          }
+          if (data.user) {
+            setStatus('Setting up your profile...')
+            await redirectUser(supabase, data.user.id)
+          }
         } else {
-          router.push('/dashboard')
+          // Check if already logged in (session exists)
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            await redirectUser(supabase, user.id)
+          } else {
+            router.push('/login?error=no_token')
+          }
         }
       } catch (err: any) {
         console.error('Confirm error:', err)
@@ -57,10 +66,25 @@ function ConfirmInner() {
     handleConfirm()
   }, [])
 
+  const redirectUser = async (supabase: any, userId: string) => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarding_complete')
+      .eq('id', userId)
+      .single()
+
+    if (!profile?.onboarding_complete) {
+      router.push('/onboarding')
+    } else {
+      router.push('/dashboard')
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-6">
-      <div className="w-10 h-10 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-      <p className="text-slate-400 text-sm font-medium">{status}</p>
+    <div style={{ minHeight: '100vh', background: '#080810', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <div style={{ width: 40, height: 40, border: '2px solid rgba(245,158,11,0.2)', borderTop: '2px solid #f59e0b', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <p style={{ color: '#8888a8', fontSize: 14, fontFamily: 'sans-serif' }}>{status}</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }
@@ -68,8 +92,9 @@ function ConfirmInner() {
 export default function AuthConfirmPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+      <div style={{ minHeight: '100vh', background: '#080810', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '2px solid rgba(245,158,11,0.2)', borderTop: '2px solid #f59e0b', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     }>
       <ConfirmInner />
