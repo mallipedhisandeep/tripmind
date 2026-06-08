@@ -2,8 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // Don't run middleware on auth callback
-  if (request.nextUrl.pathname.startsWith('/auth')) {
+  // Never intercept auth routes
+  if (
+    request.nextUrl.pathname.startsWith('/auth') ||
+    request.nextUrl.pathname.startsWith('/_next') ||
+    request.nextUrl.pathname.includes('.')
+  ) {
     return NextResponse.next()
   }
 
@@ -14,13 +18,9 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
+        getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet: any) {
-          cookiesToSet.forEach(({ name, value }: any) =>
-            request.cookies.set(name, value)
-          )
+          cookiesToSet.forEach(({ name, value }: any) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }: any) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -32,11 +32,10 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user && (
-    request.nextUrl.pathname.startsWith('/dashboard') ||
-    request.nextUrl.pathname.startsWith('/plan') ||
-    request.nextUrl.pathname.startsWith('/onboarding')
-  )) {
+  const protectedRoutes = ['/dashboard', '/plan', '/onboarding']
+  const isProtected = protectedRoutes.some(r => request.nextUrl.pathname.startsWith(r))
+
+  if (!user && isProtected) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -52,7 +51,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
