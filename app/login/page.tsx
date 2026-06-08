@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { motion } from 'framer-motion'
@@ -10,7 +9,6 @@ export default function LoginPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // If already logged in, go to dashboard
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) window.location.href = '/dashboard'
     })
@@ -21,44 +19,39 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `https://tripmind-six.vercel.app/auth/callback`,
+        redirectTo: 'https://tripmind-six.vercel.app/auth/callback',
         queryParams: { prompt: 'select_account' },
       },
     })
-    if (error) { toast.error('Google login failed'); setLoading(false) }
+    if (error) { toast.error('Google sign-in failed. Try again.'); setLoading(false) }
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', background: '#080810',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24, fontFamily: 'sans-serif',
-    }}>
-      <div style={{ position: 'fixed', top: -300, left: -300, width: 700, height: 700, borderRadius: '50%', background: 'radial-gradient(circle, rgba(245,158,11,0.05) 0%, transparent 65%)', pointerEvents: 'none' }} />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+      <div className="amb-1" /><div className="amb-2" />
+      <div className="dot-grid" style={{ position: 'fixed', inset: 0, zIndex: 0, opacity: 0.35 }} />
 
-      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
-        style={{ width: '100%', maxWidth: 360, position: 'relative', zIndex: 10 }}>
+      <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42 }}
+        style={{ width: '100%', maxWidth: 380, position: 'relative', zIndex: 10 }}>
 
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: 32, fontWeight: 800, background: 'linear-gradient(135deg,#f59e0b,#f97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: 8 }}>
-            ✈ TripMind
-          </div>
-          <p style={{ color: '#8888a8', fontSize: 14 }}>India&apos;s smartest travel planner</p>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div className="font-display gold" style={{ fontSize: 30, fontWeight: 700, marginBottom: 6 }}>✈ TripMind</div>
+          <p style={{ color: 'var(--t2)', fontSize: 13 }}>India&apos;s smartest travel planner</p>
         </div>
 
-        <div style={{ background: '#0e0e1a', border: '1px solid #1e1e2e', borderRadius: 20, padding: 32, textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>🗺️</div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f0', marginBottom: 8 }}>Welcome to TripMind</h2>
-          <p style={{ color: '#8888a8', fontSize: 13, lineHeight: 1.6, marginBottom: 28 }}>
-            Plan complete India trips in seconds — real train timings, temple tips, local food &amp; live alerts.
-          </p>
+        {/* Card */}
+        <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 24, padding: 32 }}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--gold-dim)', border: '1px solid rgba(232,160,32,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 16px' }}>🗺️</div>
+            <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>Welcome to TripMind</h2>
+            <p style={{ color: 'var(--t2)', fontSize: 13, lineHeight: 1.65 }}>
+              Plan complete India trips in seconds — real train timings, temple tips &amp; live alerts.
+            </p>
+          </div>
 
-          <button onClick={handleGoogle} disabled={loading} style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-            padding: '14px 20px', background: loading ? '#d1d5db' : '#ffffff',
-            color: '#1a1a1a', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
-            cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
-          }}>
+          <button onClick={handleGoogle} disabled={loading}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '14px 20px', background: loading ? '#d1d5db' : '#fff', color: '#111', border: 'none', borderRadius: 14, fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all 0.15s' }}>
             <svg width="18" height="18" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -68,7 +61,9 @@ export default function LoginPage() {
             {loading ? 'Connecting...' : 'Continue with Google'}
           </button>
 
-          <p style={{ color: '#44445a', fontSize: 12, marginTop: 16 }}>Free · No credit card needed</p>
+          <p style={{ textAlign: 'center', color: 'var(--t3)', fontSize: 11, marginTop: 16, lineHeight: 1.6 }}>
+            Free to use · No credit card · Your data stays private
+          </p>
         </div>
       </motion.div>
     </div>
