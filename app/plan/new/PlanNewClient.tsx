@@ -8,21 +8,21 @@ import toast from 'react-hot-toast'
 import { TripForm } from '@/types'
 
 const INTERESTS = ['Temples','Beaches','Mountains','Food','Adventure','Nature','Museums','Shopping','Monuments','Wildlife','Waterfalls','Forts']
-const TRAVEL_WITH = [
-  { value: 'solo', label: 'Solo', emoji: '🧍' },
-  { value: 'couple', label: 'Couple', emoji: '👫' },
-  { value: 'friends', label: 'Friends', emoji: '👯' },
-  { value: 'family_kids', label: 'Family + Kids', emoji: '👨‍👩‍👧' },
-  { value: 'family_elders', label: 'Family + Elders', emoji: '👴' },
+const WITH = [
+  { v: 'solo', l: 'Solo', e: '🧍' },
+  { v: 'couple', l: 'Couple', e: '👫' },
+  { v: 'friends', l: 'Friends', e: '👯' },
+  { v: 'family_kids', l: 'Family + Kids', e: '👨‍👩‍👧' },
+  { v: 'family_elders', l: 'Family + Elders', e: '👴' },
 ]
 const TRANSPORT = ['Train','Flight','Bus','Car','Any']
 const BUDGET = [
-  { value: 'budget', label: 'Economy', desc: 'Under ₹5k/person' },
-  { value: 'moderate', label: 'Moderate', desc: '₹5k–₹15k/person' },
-  { value: 'comfortable', label: 'Comfortable', desc: '₹15k–₹30k/person' },
-  { value: 'premium', label: 'Premium', desc: 'Above ₹30k/person' },
+  { v: 'budget', l: 'Economy', d: 'Under ₹5k/person' },
+  { v: 'moderate', l: 'Moderate', d: '₹5k–₹15k/person' },
+  { v: 'comfortable', l: 'Comfortable', d: '₹15k–₹30k/person' },
+  { v: 'premium', l: 'Premium', d: 'Above ₹30k/person' },
 ]
-const AGE_GROUPS = ['Kids (0–12)','Teens (13–17)','Adults (18–40)','Middle-aged (40–60)','Seniors (60+)']
+const AGES = ['Kids (0–12)','Teens (13–17)','Adults (18–40)','Middle-aged (40–60)','Seniors (60+)']
 
 export default function PlanNewClient() {
   const router = useRouter()
@@ -59,7 +59,7 @@ export default function PlanNewClient() {
     load()
   }, [])
 
-  const handleDays = (days: number) => {
+  const setDays = (days: number) => {
     setForm(f => {
       const start = new Date(f.start_date || tomorrow)
       const end = new Date(start)
@@ -68,7 +68,7 @@ export default function PlanNewClient() {
     })
   }
 
-  const handleStartDate = (date: string) => {
+  const setStart = (date: string) => {
     setForm(f => {
       const start = new Date(date)
       const end = new Date(start)
@@ -77,17 +77,17 @@ export default function PlanNewClient() {
     })
   }
 
-  const toggle = (key: 'interests' | 'age_groups', val: string) =>
+  const toggleArr = (key: 'interests' | 'age_groups', val: string) =>
     setForm(f => ({ ...f, [key]: f[key].includes(val) ? f[key].filter(x => x !== val) : [...f[key], val] }))
 
-  const handleGenerate = async () => {
+  const generate = async () => {
     if (!form.from.trim()) { toast.error('Enter starting city'); return }
     if (!form.to.trim()) { toast.error('Enter destination'); return }
-    if (form.interests.length === 0) { toast.error('Pick at least one interest'); return }
+    if (!form.interests.length) { toast.error('Pick at least one interest'); return }
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not logged in')
+      if (!user) { window.location.href = '/login'; return }
       const { data: trip, error } = await supabase
         .from('trips').insert({ user_id: user.id, form_data: form, status: 'draft', regen_count: 0 })
         .select().single()
@@ -96,22 +96,42 @@ export default function PlanNewClient() {
     } catch { toast.error('Something went wrong. Try again.'); setLoading(false) }
   }
 
+  const S = (active: boolean) => ({
+    border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+    background: active ? 'var(--gold-dim)' : 'var(--s2)',
+    borderRadius: 12, padding: '12px 14px',
+    cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s',
+  })
+
+  const counter = (val: number, min: number, max: number, set: (n: number) => void) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <button onClick={() => set(Math.max(min, val - 1))}
+        style={{ width: 38, height: 38, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--gold)', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>−</button>
+      <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', minWidth: 28, textAlign: 'center' }}>{val}</span>
+      <button onClick={() => set(Math.min(max, val + 1))}
+        style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#e8a020,#f5bc4a)', border: 'none', color: '#0c0c0f', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>+</button>
+    </div>
+  )
+
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <div className="glow-1" /><div className="glow-2" />
-      <nav className="glass sticky top-0 z-50 flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
-        <button onClick={() => router.push('/dashboard')} className="p-2 rounded-xl transition-colors" style={{ color: 'var(--text-2)' }}>
-          <ArrowLeft className="w-5 h-5" />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: 'hidden' }}>
+      <div className="amb-1" /><div className="amb-2" />
+
+      {/* NAV */}
+      <nav className="glass" style={{ position: 'sticky', top: 0, zIndex: 50, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px' }}>
+        <button onClick={() => router.push('/dashboard')} style={{ padding: 8, borderRadius: 10, background: 'transparent', border: 'none', color: 'var(--t2)', cursor: 'pointer' }}>
+          <ArrowLeft style={{ width: 18, height: 18 }} />
         </button>
-        <div className="font-display text-lg font-bold gradient-text">Plan a Trip</div>
+        <span className="font-display gold" style={{ fontSize: 18, fontWeight: 700 }}>Plan a Trip</span>
       </nav>
 
-      <div className="relative z-10 max-w-xl mx-auto px-5 pb-32 pt-6">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+      <div style={{ position: 'relative', zIndex: 10, maxWidth: 560, margin: '0 auto', padding: '24px 20px 120px' }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+          {/* From / To */}
           <div>
-            <h2 className="font-display text-2xl font-bold mb-4" style={{ color: 'var(--text)' }}>Where are you going?</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 16 }}>Where are you going?</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div><label className="label">From</label>
                 <input className="input" placeholder="e.g. Hyderabad" value={form.from} onChange={e => setForm(f => ({ ...f, from: e.target.value }))} /></div>
               <div><label className="label">To</label>
@@ -119,94 +139,81 @@ export default function PlanNewClient() {
             </div>
           </div>
 
+          {/* Dates */}
           <div>
             <label className="label">Travel Dates</label>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div><label className="label" style={{ fontSize: 10 }}>Start Date</label>
-                <input type="date" className="input" min={today} value={form.start_date} onChange={e => handleStartDate(e.target.value)} /></div>
-              <div><label className="label" style={{ fontSize: 10 }}>End Date</label>
-                <input type="date" className="input" value={form.end_date} readOnly style={{ opacity: 0.5 }} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div><label className="label" style={{ fontSize: 10 }}>Start</label>
+                <input type="date" className="input" min={today} value={form.start_date} onChange={e => setStart(e.target.value)} /></div>
+              <div><label className="label" style={{ fontSize: 10 }}>End (auto)</label>
+                <input type="date" className="input" value={form.end_date} readOnly style={{ opacity: 0.45 }} /></div>
             </div>
-            <label className="label">Number of Days</label>
-            <div className="flex items-center gap-4">
-              <button onClick={() => handleDays(Math.max(1, form.days - 1))}
-                className="w-10 h-10 rounded-xl border font-bold text-lg" style={{ borderColor: 'var(--border)', color: 'var(--amber)', background: 'var(--surface2)' }}>−</button>
-              <span className="text-2xl font-bold w-8 text-center" style={{ color: 'var(--text)' }}>{form.days}</span>
-              <button onClick={() => handleDays(Math.min(14, form.days + 1))}
-                className="w-10 h-10 rounded-xl font-bold text-lg" style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#080810' }}>+</button>
-            </div>
+            <label className="label">Days</label>
+            {counter(form.days, 1, 14, setDays)}
           </div>
 
+          {/* Travelers */}
           <div>
-            <label className="label">Number of Travelers</label>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setForm(f => ({ ...f, travelers: Math.max(1, f.travelers - 1) }))}
-                className="w-10 h-10 rounded-xl border font-bold text-lg" style={{ borderColor: 'var(--border)', color: 'var(--amber)', background: 'var(--surface2)' }}>−</button>
-              <span className="text-2xl font-bold w-8 text-center" style={{ color: 'var(--text)' }}>{form.travelers}</span>
-              <button onClick={() => setForm(f => ({ ...f, travelers: Math.min(30, f.travelers + 1) }))}
-                className="w-10 h-10 rounded-xl font-bold text-lg" style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#080810' }}>+</button>
+            <label className="label">Travelers</label>
+            {counter(form.travelers, 1, 30, n => setForm(f => ({ ...f, travelers: n })))}
+          </div>
+
+          {/* Group */}
+          <div>
+            <label className="label">Traveling With</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {WITH.map(t => <button key={t.v} onClick={() => setForm(f => ({ ...f, group_type: t.v as any }))} className={`chip ${form.group_type === t.v ? 'active' : ''}`}>{t.e} {t.l}</button>)}
             </div>
           </div>
 
-          <div><label className="label">Traveling With</label>
-            <div className="flex flex-wrap gap-2">
-              {TRAVEL_WITH.map(t => (
-                <button key={t.value} onClick={() => setForm(f => ({ ...f, group_type: t.value as any }))}
-                  className={`chip ${form.group_type === t.value ? 'active' : ''}`}>{t.emoji} {t.label}</button>
-              ))}
+          {/* Ages */}
+          <div>
+            <label className="label">Age Groups</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {AGES.map(a => <button key={a} onClick={() => toggleArr('age_groups', a)} className={`chip ${form.age_groups.includes(a) ? 'active' : ''}`}>{a}</button>)}
             </div>
           </div>
 
-          <div><label className="label">Age Groups</label>
-            <div className="flex flex-wrap gap-2">
-              {AGE_GROUPS.map(a => (
-                <button key={a} onClick={() => toggle('age_groups', a)}
-                  className={`chip ${form.age_groups.includes(a) ? 'active' : ''}`}>{a}</button>
-              ))}
-            </div>
-          </div>
-
-          <div><label className="label">Budget Range</label>
-            <div className="grid grid-cols-2 gap-2">
+          {/* Budget */}
+          <div>
+            <label className="label">Budget Range</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {BUDGET.map(b => (
-                <button key={b.value} onClick={() => setForm(f => ({ ...f, budget: b.value as any }))}
-                  className="p-3 rounded-xl border text-left transition-all"
-                  style={{ border: form.budget === b.value ? '1.5px solid var(--amber)' : '1px solid var(--border)', background: form.budget === b.value ? 'var(--amber-dim)' : 'var(--surface2)' }}>
-                  <div className="text-sm font-semibold" style={{ color: form.budget === b.value ? 'var(--amber)' : 'var(--text)' }}>{b.label}</div>
-                  <div className="text-xs" style={{ color: 'var(--text-2)' }}>{b.desc}</div>
+                <button key={b.v} onClick={() => setForm(f => ({ ...f, budget: b.v as any }))} style={S(form.budget === b.v)}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: form.budget === b.v ? 'var(--gold)' : 'var(--t1)' }}>{b.l}</div>
+                  <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>{b.d}</div>
                 </button>
               ))}
             </div>
           </div>
 
-          <div><label className="label">Interests</label>
-            <div className="flex flex-wrap gap-2">
-              {INTERESTS.map(i => (
-                <button key={i} onClick={() => toggle('interests', i)}
-                  className={`chip ${form.interests.includes(i) ? 'active' : ''}`}>{i}</button>
-              ))}
+          {/* Interests */}
+          <div>
+            <label className="label">Interests</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {INTERESTS.map(i => <button key={i} onClick={() => toggleArr('interests', i)} className={`chip ${form.interests.includes(i) ? 'active' : ''}`}>{i}</button>)}
             </div>
           </div>
 
-          <div><label className="label">Preferred Transport</label>
-            <div className="flex flex-wrap gap-2">
-              {TRANSPORT.map(t => (
-                <button key={t} onClick={() => setForm(f => ({ ...f, transport: t.toLowerCase() as any }))}
-                  className={`chip ${form.transport === t.toLowerCase() ? 'active' : ''}`}>{t}</button>
-              ))}
+          {/* Transport */}
+          <div>
+            <label className="label">Preferred Transport</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {TRANSPORT.map(t => <button key={t} onClick={() => setForm(f => ({ ...f, transport: t.toLowerCase() as any }))} className={`chip ${form.transport === t.toLowerCase() ? 'active' : ''}`}>{t}</button>)}
             </div>
           </div>
 
-          <div><label className="label">Anything special? (optional)</label>
-            <textarea className="input resize-none" rows={3}
-              placeholder="e.g. One person uses a wheelchair, prefer vegetarian food, early morning starts..."
+          {/* Notes */}
+          <div>
+            <label className="label">Special Notes (optional)</label>
+            <textarea className="input" rows={3} style={{ resize: 'none' }}
+              placeholder="e.g. Wheelchair access needed, prefer vegetarian, early morning starts..."
               value={form.special_notes} onChange={e => setForm(f => ({ ...f, special_notes: e.target.value }))} />
           </div>
 
-          <button onClick={handleGenerate} disabled={loading} className="btn btn-primary w-full py-4 text-base disabled:opacity-40">
-            {loading ? '⏳ Saving...' : '✨ Generate My Trip Plan'}
+          <button onClick={generate} disabled={loading} className="btn-gold" style={{ width: '100%', padding: '16px', fontSize: 15 }}>
+            {loading ? '⏳ Saving trip...' : '✨ Generate My Trip Plan'}
           </button>
-
         </motion.div>
       </div>
     </div>
