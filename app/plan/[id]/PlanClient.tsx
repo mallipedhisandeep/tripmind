@@ -1,101 +1,75 @@
 'use client'
-
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, RefreshCw, ExternalLink, MapPin, Train, Hotel, Utensils, Lightbulb, AlertTriangle, Cloud } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GeneratedPlan } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
-const LOADING_STAGES = [
-  'Checking train availability...',
-  'Looking up temple timings...',
-  'Finding local food spots...',
-  'Calculating best route...',
-  'Personalizing for your group...',
-  'Building your itinerary...',
-]
+const STAGES = ['Fetching train data...','Looking up temple timings...','Finding local food...','Calculating route...','Personalising for you...','Building your plan...']
 
-const TYPE_COLORS: Record<string, string> = {
-  travel: '#3b82f6',
-  temple: '#f59e0b',
-  food: '#10b981',
-  stay: '#8b5cf6',
-  nature: '#22c55e',
-  heritage: '#f97316',
-  shopping: '#ec4899',
-  leisure: '#64748b',
+const TC: Record<string, string> = {
+  travel:'#3b82f6', temple:'#e8a020', food:'#34d399', stay:'#8b5cf6',
+  nature:'#2dd4bf', heritage:'#f97316', shopping:'#fb7185', leisure:'#9090b0',
 }
 
-function LoadingScreen({ progress, stage }: { progress: number; stage: number }) {
+const BC: Record<string, string> = {
+  transport:'#3b82f6', accommodation:'#8b5cf6', food:'#34d399', activities:'#e8a020', misc:'#50506a',
+}
+
+function Loader({ pct, stage }: { pct: number; stage: number }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] gap-8">
-      <div className="relative w-28 h-28">
-        <svg viewBox="0 0 120 120" className="w-28 h-28 -rotate-90">
-          <circle cx="60" cy="60" r="54" fill="none" stroke="#1e293b" strokeWidth="6" />
-          <circle cx="60" cy="60" r="54" fill="none" stroke="url(#grad)" strokeWidth="6"
-            strokeDasharray={`${2 * Math.PI * 54}`}
-            strokeDashoffset={`${2 * Math.PI * 54 * (1 - progress / 100)}`}
-            style={{ transition: 'stroke-dashoffset 0.4s ease' }}
-          />
+    <div style={{ minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
+      <div style={{ position: 'relative', width: 100, height: 100 }}>
+        <svg viewBox="0 0 100 100" style={{ width: 100, height: 100, transform: 'rotate(-90deg)' }}>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="var(--border)" strokeWidth="5" />
+          <circle cx="50" cy="50" r="44" fill="none" stroke="url(#g)" strokeWidth="5"
+            strokeDasharray={`${2 * Math.PI * 44}`}
+            strokeDashoffset={`${2 * Math.PI * 44 * (1 - pct / 100)}`}
+            style={{ transition: 'stroke-dashoffset 0.4s ease' }} strokeLinecap="round" />
           <defs>
-            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#ef4444" />
+            <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#e8a020" /><stop offset="100%" stopColor="#f5bc4a" />
             </linearGradient>
           </defs>
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-amber-400 font-display">
-          {progress}%
-        </div>
+        <div className="font-display" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{pct}%</div>
       </div>
-      <div className="text-center">
-        <div className="text-xs text-slate-600 tracking-widest uppercase mb-2">Planning Your Trip</div>
-        <div className="text-slate-300 font-medium text-lg">{LOADING_STAGES[stage] || 'Almost ready...'}</div>
+      <div style={{ textAlign: 'center' }}>
+        <div className="label" style={{ marginBottom: 6 }}>Planning your trip</div>
+        <div style={{ fontSize: 15, color: 'var(--t1)', fontWeight: 500 }}>{STAGES[stage] || 'Almost ready...'}</div>
       </div>
-      <div className="w-64 h-1.5 bg-brand-border rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-amber-500 to-red-500 rounded-full transition-all duration-300"
-          style={{ width: `${progress}%` }}
-        />
+      <div style={{ width: 240, height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{ height: '100%', background: 'linear-gradient(90deg,#e8a020,#f5bc4a)', width: `${pct}%`, transition: 'width 0.3s ease', borderRadius: 99 }} />
       </div>
     </div>
   )
 }
 
 export default function PlanClient({ trip, isGenerating }: { trip: any; isGenerating: boolean }) {
-  const router = useRouter()
   const [plan, setPlan] = useState<GeneratedPlan | null>(trip.generated_plan || null)
   const [loading, setLoading] = useState(isGenerating && !trip.generated_plan)
-  const [progress, setProgress] = useState(0)
+  const [pct, setPct] = useState(0)
   const [stage, setStage] = useState(0)
   const [activeDay, setActiveDay] = useState(0)
   const [regenCount, setRegenCount] = useState(trip.regen_count || 0)
   const [showUpgrade, setShowUpgrade] = useState(false)
   const [regenLoading, setRegenLoading] = useState(false)
 
-  useEffect(() => {
-    if (loading) generatePlan()
-  }, [])
+  useEffect(() => { if (loading) doGenerate() }, [])
 
-  const animateProgress = (onComplete: () => void) => {
+  const animatePct = (onDone: () => void) => {
     let p = 0
-    let s = 0
-    const interval = setInterval(() => {
-      p += Math.random() * 4 + 1.5
-      if (p >= 95) { p = 95; clearInterval(interval); onComplete(); return }
-      s = Math.floor(p / 17)
-      setProgress(Math.floor(p))
-      setStage(s)
-    }, 250)
+    const iv = setInterval(() => {
+      p += Math.random() * 3.5 + 1
+      if (p >= 95) { p = 95; clearInterval(iv); onDone(); return }
+      setPct(Math.floor(p)); setStage(Math.floor(p / 17))
+    }, 280)
   }
 
-  const generatePlan = async () => {
-    setLoading(true)
-    setProgress(0)
-
-    animateProgress(async () => {
+  const doGenerate = async () => {
+    setLoading(true); setPct(0)
+    animatePct(async () => {
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
@@ -106,27 +80,17 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tripId: trip.id, accessToken: session.access_token }),
         })
-
         const data = await res.json()
 
         if (!res.ok) {
-          if (data.error === 'REGEN_LIMIT_REACHED') {
-            setShowUpgrade(true)
-            setLoading(false)
-            return
-          }
+          if (data.error === 'REGEN_LIMIT_REACHED') { setShowUpgrade(true); setLoading(false); return }
           throw new Error(data.error || 'Generation failed')
         }
 
-        setProgress(100)
-        setStage(5)
-        setTimeout(() => {
-          setPlan(data.plan)
-          setRegenCount((c: number) => c + 1)
-          setLoading(false)
-        }, 500)
+        setPct(100); setStage(5)
+        setTimeout(() => { setPlan(data.plan); setRegenCount((c: number) => c + 1); setLoading(false) }, 500)
       } catch (err: any) {
-        toast.error(err.message || 'Failed to generate plan. Try again.')
+        toast.error(err.message || 'Failed to generate. Try again.')
         setLoading(false)
       }
     })
@@ -134,149 +98,115 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
 
   const handleRegen = async () => {
     if (regenCount >= 3) { setShowUpgrade(true); return }
-    setRegenLoading(true)
-    setLoading(true)
-    setPlan(null)
-    await generatePlan()
-    setRegenLoading(false)
+    setPlan(null); setRegenLoading(true)
+    await doGenerate(); setRegenLoading(false)
   }
 
-  const totalBudget = plan
-    ? Object.values(plan.budget_breakdown).reduce((a: number, b: number) => a + b, 0)
-    : 0
+  const total = plan ? Object.values(plan.budget_breakdown).reduce((a: number, b: number) => a + b, 0) : 0
 
-  const budgetColors: Record<string, string> = {
-    transport: '#3b82f6',
-    accommodation: '#8b5cf6',
-    food: '#10b981',
-    activities: '#f59e0b',
-    misc: '#64748b',
-  }
+  const card = { background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 20, padding: 20, marginBottom: 14 }
 
   return (
-    <div className="min-h-screen bg-brand-dark relative overflow-hidden">
-      <div className="glow-amber" />
-      <div className="glow-red" />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: 'hidden' }}>
+      <div className="amb-1" /><div className="amb-2" />
 
       {/* NAV */}
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 border-b border-brand-border backdrop-blur-md bg-brand-dark/80">
-        <button onClick={() => router.push('/dashboard')} className="p-2 text-slate-500 hover:text-slate-300 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
+      <nav className="glass" style={{ position: 'sticky', top: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>
+        <button onClick={() => window.location.href = '/dashboard'} style={{ padding: 8, borderRadius: 10, background: 'transparent', border: 'none', color: 'var(--t2)', cursor: 'pointer' }}>
+          <ArrowLeft style={{ width: 18, height: 18 }} />
         </button>
-        <div className="font-display text-lg gradient-text font-bold">Your Trip Plan</div>
+        <span className="font-display gold" style={{ fontSize: 18, fontWeight: 700 }}>Your Trip Plan</span>
         {plan && !loading && (
-          <button
-            onClick={handleRegen}
-            disabled={regenLoading}
-            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-amber-400 transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${regenLoading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:block">Regenerate</span>
+          <button onClick={handleRegen} disabled={regenLoading} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--t2)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 8 }}>
+            <RefreshCw style={{ width: 14, height: 14 }} />
           </button>
         )}
       </nav>
 
-      <div className="relative z-10 max-w-2xl mx-auto px-5 pb-28 pt-4">
+      <div style={{ position: 'relative', zIndex: 10, maxWidth: 640, margin: '0 auto', padding: '16px 18px 100px' }}>
         <AnimatePresence mode="wait">
           {loading ? (
-            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <LoadingScreen progress={progress} stage={stage} />
+            <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <Loader pct={pct} stage={stage} />
             </motion.div>
           ) : plan ? (
-            <motion.div key="plan" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div key="plan" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
 
-              {/* HERO CARD */}
-              <div className="card border-amber-500/20 mb-4 bg-gradient-to-br from-brand-card to-[#1a1505]">
-                <div className="flex justify-between items-start flex-wrap gap-3">
+              {/* HERO */}
+              <div style={{ ...card, background: 'linear-gradient(135deg, var(--s1), #1a1408)', borderColor: 'rgba(232,160,32,0.2)', marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                   <div>
-                    <div className="text-xs text-amber-500 tracking-widest uppercase font-semibold mb-2">Trip Plan</div>
-                    <h1 className="font-display text-3xl font-normal text-slate-100">
-                      {plan.from} → <span className="text-amber-400">{plan.destination}</span>
+                    <div className="label" style={{ color: 'var(--gold)', marginBottom: 6 }}>Trip Plan</div>
+                    <h1 className="font-display" style={{ fontSize: 26, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.2 }}>
+                      {plan.from} → <span style={{ color: 'var(--gold)' }}>{plan.destination}</span>
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1">
+                    <p style={{ fontSize: 12, color: 'var(--t2)', marginTop: 5 }}>
                       {plan.days} days · {trip.form_data?.group_type?.replace('_', ' ')} · {trip.form_data?.transport}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs text-slate-600 mb-1">Est. Total</div>
-                    <div className="text-2xl font-bold text-amber-400 font-display">
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 3 }}>Est. Total</div>
+                    <div className="font-display" style={{ fontSize: 24, fontWeight: 700, color: 'var(--gold)' }}>
                       ₹{plan.total_budget_min?.toLocaleString()}–{plan.total_budget_max?.toLocaleString()}
                     </div>
-                    <div className="text-xs text-slate-600">for {trip.form_data?.travelers} traveler{trip.form_data?.travelers > 1 ? 's' : ''}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)' }}>for {trip.form_data?.travelers} traveller{trip.form_data?.travelers > 1 ? 's' : ''}</div>
                   </div>
                 </div>
-                <p className="text-slate-400 text-sm leading-relaxed mt-4 pt-4 border-t border-brand-border">
-                  {plan.summary}
-                </p>
+                <p style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.7, marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>{plan.summary}</p>
               </div>
 
-              {/* WHY THIS PLAN */}
-              <div className="card mb-4 border-l-4 border-l-amber-500 rounded-l-none">
-                <div className="flex items-center gap-2 mb-2">
-                  <Lightbulb className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Why This Plan?</span>
+              {/* WHY */}
+              <div style={{ ...card, borderLeft: '3px solid var(--gold)', borderRadius: '0 16px 16px 0', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Lightbulb style={{ width: 14, height: 14, color: 'var(--gold)' }} />
+                  <span className="label" style={{ color: 'var(--gold)' }}>Why This Plan?</span>
                 </div>
-                <p className="text-slate-400 text-sm leading-relaxed">{plan.why_this_plan}</p>
+                <p style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.7 }}>{plan.why_this_plan}</p>
               </div>
 
               {/* ALERTS */}
               {(plan.crowd_warning || plan.weather_note) && (
-                <div className="flex flex-col gap-2 mb-4">
+                <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {plan.crowd_warning && (
-                    <div className="card border-orange-500/30 bg-orange-500/5 p-4">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-orange-300">{plan.crowd_warning}</p>
-                      </div>
+                    <div style={{ background: 'rgba(251,113,133,0.07)', border: '1px solid rgba(251,113,133,0.2)', borderRadius: 14, padding: '12px 16px', display: 'flex', gap: 10 }}>
+                      <AlertTriangle style={{ width: 14, height: 14, color: '#fb7185', flexShrink: 0, marginTop: 1 }} />
+                      <p style={{ fontSize: 12, color: '#fb7185', lineHeight: 1.6 }}>{plan.crowd_warning}</p>
                     </div>
                   )}
                   {plan.weather_note && (
-                    <div className="card border-blue-500/30 bg-blue-500/5 p-4">
-                      <div className="flex items-start gap-2">
-                        <Cloud className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-blue-300">{plan.weather_note}</p>
-                      </div>
+                    <div style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 14, padding: '12px 16px', display: 'flex', gap: 10 }}>
+                      <Cloud style={{ width: 14, height: 14, color: '#3b82f6', flexShrink: 0, marginTop: 1 }} />
+                      <p style={{ fontSize: 12, color: '#3b82f6', lineHeight: 1.6 }}>{plan.weather_note}</p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* BUDGET BREAKDOWN */}
-              <div className="card mb-4">
-                <div className="text-xs text-slate-500 tracking-widest uppercase font-semibold mb-4">Budget Breakdown</div>
-                {Object.entries(plan.budget_breakdown).map(([key, val]: [string, any]) => {
-                  const pct = Math.round((val / totalBudget) * 100)
+              {/* BUDGET */}
+              <div style={{ ...card, marginBottom: 14 }}>
+                <div className="label" style={{ marginBottom: 16 }}>Budget Breakdown</div>
+                {Object.entries(plan.budget_breakdown).map(([k, v]: [string, any]) => {
+                  const pct = Math.round((v / total) * 100)
                   return (
-                    <div key={key} className="mb-3">
-                      <div className="flex justify-between text-sm mb-1.5">
-                        <span className="text-slate-400 capitalize font-medium">{key}</span>
-                        <span className="font-semibold text-slate-200">
-                          ₹{val?.toLocaleString()} <span className="text-slate-600 font-normal">({pct}%)</span>
-                        </span>
+                    <div key={k} style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--t2)', textTransform: 'capitalize', fontWeight: 500 }}>{k}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--t1)' }}>₹{v?.toLocaleString()} <span style={{ color: 'var(--t3)', fontWeight: 400 }}>({pct}%)</span></span>
                       </div>
-                      <div className="h-1.5 bg-brand-border rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.8, delay: 0.2 }}
-                          className="h-full rounded-full"
-                          style={{ background: budgetColors[key] || '#64748b' }}
-                        />
+                      <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9, delay: 0.2 }}
+                          style={{ height: '100%', background: BC[k] || '#50506a', borderRadius: 99 }} />
                       </div>
                     </div>
                   )
                 })}
               </div>
 
-              {/* DAY SELECTOR */}
-              <div className="flex gap-2 mb-3">
-                {plan.days_plan?.map((d, i) => (
+              {/* DAY TABS */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                {plan.days_plan?.map((d: any, i: number) => (
                   <button key={i} onClick={() => setActiveDay(i)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                      activeDay === i
-                        ? 'bg-gradient-to-r from-amber-500 to-red-500 text-brand-dark'
-                        : 'bg-brand-border text-slate-500 hover:text-slate-300'
-                    }`}>
+                    style={{ flex: 1, padding: '10px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all 0.15s', background: activeDay === i ? 'linear-gradient(135deg,#e8a020,#f5bc4a)' : 'var(--s2)', color: activeDay === i ? '#0c0c0f' : 'var(--t3)' }}>
                     Day {d.day}
                   </button>
                 ))}
@@ -284,200 +214,150 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
 
               {/* DAY PLAN */}
               {plan.days_plan?.[activeDay] && (
-                <div className="card mb-4">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="w-1 h-8 rounded-full bg-gradient-to-b from-amber-500 to-red-500" />
+                <div style={{ ...card, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                    <div style={{ width: 3, height: 32, borderRadius: 99, background: 'linear-gradient(180deg,#e8a020,#f5bc4a)' }} />
                     <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wider">Day {plan.days_plan[activeDay].day}</div>
-                      <div className="font-semibold text-slate-100">{plan.days_plan[activeDay].title}</div>
+                      <div className="label">Day {plan.days_plan[activeDay].day}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--t1)' }}>{plan.days_plan[activeDay].title}</div>
                     </div>
-                    {plan.days_plan[activeDay].date && (
-                      <div className="ml-auto text-xs text-slate-600">{plan.days_plan[activeDay].date}</div>
-                    )}
+                    {plan.days_plan[activeDay].date && <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--t3)' }}>{plan.days_plan[activeDay].date}</div>}
                   </div>
-                  <div className="flex flex-col">
-                    {plan.days_plan[activeDay].slots?.map((slot, si) => (
-                      <div key={si} className="flex gap-3 pb-5 relative">
-                        <div className="flex flex-col items-center min-w-[14px]">
-                          <div className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
-                            style={{ background: TYPE_COLORS[slot.type] || '#64748b' }} />
-                          {si < plan.days_plan[activeDay].slots.length - 1 && (
-                            <div className="w-px flex-1 bg-brand-border mt-1" />
-                          )}
-                        </div>
-                        <div className="flex-1 pb-1">
-                          <div className="text-xs text-slate-600 font-medium mb-1">{slot.time}</div>
-                          <div className="text-sm font-semibold text-slate-200 mb-2">
-                            {slot.icon} {slot.activity}
-                          </div>
-                          <div className="text-xs text-slate-500 leading-relaxed bg-brand-dark rounded-lg p-2.5 border border-brand-border">
-                            💡 {slot.tip}
-                          </div>
-                          {slot.booking_link && (
-                            <a href={slot.booking_link} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-amber-400 mt-2 hover:underline">
-                              Book here <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
+                  {plan.days_plan[activeDay].slots?.map((slot: any, si: number) => (
+                    <div key={si} style={{ display: 'flex', gap: 12, paddingBottom: 18, position: 'relative' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 12 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: TC[slot.type] || 'var(--t3)', marginTop: 3, flexShrink: 0 }} />
+                        {si < plan.days_plan[activeDay].slots.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border)', marginTop: 4 }} />}
                       </div>
-                    ))}
-                  </div>
+                      <div style={{ flex: 1, paddingBottom: 2 }}>
+                        <div style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, marginBottom: 3 }}>{slot.time}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', marginBottom: 6 }}>{slot.icon} {slot.activity}</div>
+                        <div style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.6, background: 'var(--s2)', padding: '8px 12px', borderRadius: 10, borderLeft: '2px solid var(--border2)' }}>
+                          💡 {slot.tip}
+                        </div>
+                        {slot.booking_link && (
+                          <a href={slot.booking_link} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--gold)', marginTop: 6 }}>
+                            Book here <ExternalLink style={{ width: 10, height: 10 }} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {/* HOTELS */}
               {plan.hotels?.length > 0 && (
-                <div className="card mb-4">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Hotel className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500 tracking-widest uppercase font-semibold">Where to Stay</span>
+                <div style={{ ...card, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                    <Hotel style={{ width: 14, height: 14, color: 'var(--t3)' }} />
+                    <span className="label">Where to Stay</span>
                   </div>
-                  <div className="flex flex-col gap-3">
-                    {plan.hotels.map((h, i) => (
-                      <div key={i} className="flex items-center justify-between p-3.5 bg-brand-dark rounded-xl border border-brand-border">
-                        <div>
-                          <div className="font-semibold text-sm text-slate-200 mb-1">{h.name}</div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold">
-                              {h.tag}
-                            </span>
-                            <span className="text-xs text-slate-600">⭐ {h.rating}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-bold text-green-400">{h.price_range}</div>
-                          <a href={h.booking_url} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-amber-400 hover:underline mt-1">
-                            Check <ExternalLink className="w-3 h-3" />
-                          </a>
+                  {plan.hotels.map((h: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--s2)', borderRadius: 14, marginBottom: 8, border: '1px solid var(--border)' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--t1)', marginBottom: 4 }}>{h.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ padding: '2px 8px', borderRadius: 99, background: 'var(--gold-dim)', color: 'var(--gold)', fontSize: 10, fontWeight: 700 }}>{h.tag}</span>
+                          <span style={{ fontSize: 11, color: 'var(--t3)' }}>⭐ {h.rating}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{h.price_range}</div>
+                        <a href={h.booking_url} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize: 11, color: 'var(--gold)', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4 }}>
+                          Book <ExternalLink style={{ width: 10, height: 10 }} />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {/* FOOD */}
               {plan.food_recommendations?.length > 0 && (
-                <div className="card mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Utensils className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500 tracking-widest uppercase font-semibold">What to Eat</span>
+                <div style={{ ...card, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Utensils style={{ width: 14, height: 14, color: 'var(--t3)' }} />
+                    <span className="label">What to Eat</span>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    {plan.food_recommendations.map((f, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm text-slate-400">
-                        <span className="text-green-400 mt-0.5">•</span> {f}
-                      </div>
-                    ))}
-                  </div>
+                  {plan.food_recommendations.map((f: string, i: number) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: 13, color: 'var(--t2)', lineHeight: 1.5 }}>
+                      <span style={{ color: 'var(--green)', flexShrink: 0 }}>•</span>{f}
+                    </div>
+                  ))}
                 </div>
               )}
 
               {/* ROUTE HIGHLIGHTS */}
               {plan.route_highlights?.length > 0 && (
-                <div className="card mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <MapPin className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500 tracking-widest uppercase font-semibold">On Your Route</span>
+                <div style={{ ...card, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <MapPin style={{ width: 14, height: 14, color: 'var(--t3)' }} />
+                    <span className="label">On Your Route</span>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    {plan.route_highlights.map((r, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm text-slate-400">
-                        <span className="text-blue-400 mt-0.5">→</span> {r}
-                      </div>
-                    ))}
-                  </div>
+                  {plan.route_highlights.map((r: string, i: number) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: 13, color: 'var(--t2)', lineHeight: 1.5 }}>
+                      <span style={{ color: '#3b82f6', flexShrink: 0 }}>→</span>{r}
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* PRACTICAL TIPS */}
+              {/* TIPS */}
               {plan.practical_tips?.length > 0 && (
-                <div className="card mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Lightbulb className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500 tracking-widest uppercase font-semibold">Must-Know Tips</span>
+                <div style={{ ...card, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Lightbulb style={{ width: 14, height: 14, color: 'var(--t3)' }} />
+                    <span className="label">Must-Know Tips</span>
                   </div>
-                  <div className="flex flex-col gap-2.5">
-                    {plan.practical_tips.map((tip, i) => (
-                      <div key={i} className="flex items-start gap-2.5 p-3 bg-brand-dark rounded-xl border border-brand-border">
-                        <span className="text-amber-400 font-bold mt-0.5 flex-shrink-0">•</span>
-                        <span className="text-sm text-slate-400 leading-relaxed">{tip}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {plan.practical_tips.map((tip: string, i: number) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--s2)', borderRadius: 12, marginBottom: 7, border: '1px solid var(--border)' }}>
+                      <span style={{ color: 'var(--gold)', flexShrink: 0, fontWeight: 700 }}>•</span>
+                      <span style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.6 }}>{tip}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {/* BOOKING LINKS */}
               {plan.booking_links && (
-                <div className="card mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Train className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500 tracking-widest uppercase font-semibold">Book Now</span>
+                <div style={{ ...card, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Train style={{ width: 14, height: 14, color: 'var(--t3)' }} />
+                    <span className="label">Book Now</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {plan.booking_links.train && (
-                      <a href={plan.booking_links.train} target="_blank" rel="noopener noreferrer"
-                        className="btn-outline text-sm py-2 px-4 flex items-center gap-2">
-                        🚂 Book Train on IRCTC <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                    {plan.booking_links.hotel && (
-                      <a href={plan.booking_links.hotel} target="_blank" rel="noopener noreferrer"
-                        className="btn-outline text-sm py-2 px-4 flex items-center gap-2">
-                        🏨 Find Hotels <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                    {plan.booking_links.bus && (
-                      <a href={plan.booking_links.bus} target="_blank" rel="noopener noreferrer"
-                        className="btn-outline text-sm py-2 px-4 flex items-center gap-2">
-                        🚌 Book Bus <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                    {plan.booking_links.flight && (
-                      <a href={plan.booking_links.flight} target="_blank" rel="noopener noreferrer"
-                        className="btn-outline text-sm py-2 px-4 flex items-center gap-2">
-                        ✈️ Check Flights <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {plan.booking_links.train && <a href={plan.booking_links.train} target="_blank" rel="noopener noreferrer" className="btn-outline-gold" style={{ padding: '9px 14px', fontSize: 12, borderRadius: 10, textDecoration: 'none' }}>🚂 IRCTC Train</a>}
+                    {plan.booking_links.hotel && <a href={plan.booking_links.hotel} target="_blank" rel="noopener noreferrer" className="btn-outline-gold" style={{ padding: '9px 14px', fontSize: 12, borderRadius: 10, textDecoration: 'none' }}>🏨 Hotels</a>}
+                    {plan.booking_links.bus && <a href={plan.booking_links.bus} target="_blank" rel="noopener noreferrer" className="btn-outline-gold" style={{ padding: '9px 14px', fontSize: 12, borderRadius: 10, textDecoration: 'none' }}>🚌 Bus</a>}
+                    {plan.booking_links.flight && <a href={plan.booking_links.flight} target="_blank" rel="noopener noreferrer" className="btn-outline-gold" style={{ padding: '9px 14px', fontSize: 12, borderRadius: 10, textDecoration: 'none' }}>✈️ Flights</a>}
                   </div>
                 </div>
               )}
 
-              {/* REGEN BAR */}
-              <div className={`card ${regenCount >= 3 ? 'border-red-500/30' : ''}`}>
-                <div className="flex justify-between items-center flex-wrap gap-3">
+              {/* REGEN */}
+              <div style={{ ...card, borderColor: regenCount >= 3 ? 'rgba(251,113,133,0.2)' : 'var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                   <div>
-                    <div className="font-semibold text-slate-200 text-sm">Not quite right?</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {regenCount >= 3
-                        ? 'Upgrade to Pro for unlimited regenerations'
-                        : `${3 - regenCount} free regeneration${3 - regenCount !== 1 ? 's' : ''} left`}
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--t1)' }}>Not quite right?</div>
+                    <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 3 }}>
+                      {regenCount >= 3 ? 'Upgrade to Pro for unlimited regenerations' : `${3 - regenCount} free regeneration${3 - regenCount !== 1 ? 's' : ''} left`}
                     </div>
                   </div>
-                  {regenCount < 3 ? (
-                    <button onClick={handleRegen} disabled={regenLoading} className="btn-outline text-sm py-2 px-4 flex items-center gap-2">
-                      <RefreshCw className={`w-3.5 h-3.5 ${regenLoading ? 'animate-spin' : ''}`} />
-                      Regenerate
-                    </button>
-                  ) : (
-                    <button onClick={() => setShowUpgrade(true)} className="btn-primary text-sm py-2 px-4">
-                      ⚡ Upgrade to Pro
-                    </button>
-                  )}
+                  {regenCount < 3
+                    ? <button onClick={handleRegen} disabled={regenLoading} className="btn-ghost" style={{ padding: '9px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <RefreshCw style={{ width: 13, height: 13 }} /> Regenerate
+                      </button>
+                    : <button onClick={() => setShowUpgrade(true)} className="btn-gold" style={{ padding: '9px 16px', fontSize: 13 }}>⚡ Upgrade to Pro</button>}
                 </div>
                 {regenCount > 0 && regenCount < 3 && (
-                  <div className="flex gap-1.5 mt-3">
-                    {[0, 1, 2].map(i => (
-                      <div key={i} className="flex-1 h-1 rounded-full"
-                        style={{ background: i < regenCount ? '#ef4444' : '#1e293b' }} />
-                    ))}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                    {[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i < regenCount ? '#fb7185' : 'var(--border)' }} />)}
                   </div>
                 )}
               </div>
-
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -485,37 +365,25 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
 
       {/* UPGRADE MODAL */}
       {showUpgrade && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="card max-w-sm w-full border-amber-500/30"
-          >
-            <div className="text-center mb-6">
-              <div className="text-5xl mb-3">⚡</div>
-              <h3 className="font-display text-2xl font-normal text-slate-100 mb-2">Upgrade to Pro</h3>
-              <p className="text-slate-500 text-sm">Unlimited planning. Zero limits.</p>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}
+            style={{ background: 'var(--s1)', border: '1px solid rgba(232,160,32,0.25)', borderRadius: 24, padding: 32, maxWidth: 380, width: '100%' }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 44, marginBottom: 12 }}>⚡</div>
+              <h3 className="font-display" style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>Upgrade to Pro</h3>
+              <p style={{ fontSize: 13, color: 'var(--t2)' }}>Unlimited planning. Zero limits.</p>
             </div>
-            <div className="flex flex-col gap-2 mb-6">
-              {[
-                'Unlimited trip generations',
-                'Unlimited regenerations',
-                'Save unlimited trips',
-                'Live availability alerts',
-                'Shareable trip links',
-                'Offline plan download',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2.5 text-sm text-slate-400">
-                  <span className="text-green-400 font-bold">✓</span> {f}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+              {['Unlimited generations','Unlimited regenerations','Save unlimited trips','Live availability alerts','Shareable trip links','Offline download'].map(f => (
+                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--t2)' }}>
+                  <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓</span> {f}
                 </div>
               ))}
             </div>
-            <div className="flex flex-col gap-2">
-              <button className="btn-primary py-3 w-full">Start Pro — ₹99/month</button>
-              <button className="btn-outline py-3 w-full">₹799/year (save 33%)</button>
-              <button onClick={() => setShowUpgrade(false)} className="text-slate-600 text-sm py-2">
-                Maybe later
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button className="btn-gold" style={{ width: '100%', padding: '13px' }}>Start Pro — ₹99/month</button>
+              <button className="btn-ghost" style={{ width: '100%', padding: '12px', fontSize: 13 }}>₹799/year (save 33%)</button>
+              <button onClick={() => setShowUpgrade(false)} style={{ background: 'none', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: 13, padding: '8px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Maybe later</button>
             </div>
           </motion.div>
         </div>
