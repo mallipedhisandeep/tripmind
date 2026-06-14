@@ -1,6 +1,6 @@
 {
   "name": "tripmind",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,25 +9,23 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0",
-    "@supabase/ssr": "^0.1.0",
-    "next": "14.1.0",
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@sparticuz/chromium": "^123.0.0",
+    "@supabase/ssr": "^0.3.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "framer-motion": "^11.2.10",
+    "next": "14.2.3",
+    "puppeteer-core": "^22.9.0",
     "react": "^18",
     "react-dom": "^18",
-    "framer-motion": "^11.0.0",
-    "lucide-react": "^0.330.0",
-    "react-hot-toast": "^2.4.1",
-    "zustand": "^4.5.0"
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "autoprefixer": "^10.0.1",
-    "postcss": "^8",
-    "tailwindcss": "^3.3.0",
     "eslint": "^8",
-    "eslint-config-next": "14.1.0"
+    "eslint-config-next": "14.2.3",
+    "typescript": "^5"
   }
 }
