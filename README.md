@@ -92,6 +92,6 @@ tripmind/
 
 ---
 
-Built by Sandeep · TripMind 2025
+Built by Sandeep · TripMind 2026
 
 for indian travellers
