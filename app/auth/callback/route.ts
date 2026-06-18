@@ -3,10 +3,9 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  const siteUrl = 'https://tripmind-six.vercel.app'
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
   if (code) {
-    // Pass code to client-side handler
     return NextResponse.redirect(`${siteUrl}/auth/confirm?code=${code}`)
   }
 
