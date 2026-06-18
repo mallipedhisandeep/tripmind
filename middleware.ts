@@ -2,12 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const PROTECTED = ['/dashboard', '/plan', '/onboarding', '/watchlist', '/upgrade']
-const PUBLIC    = ['/share']  // no auth needed
+const PUBLIC    = ['/share']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Share pages are always public
   if (PUBLIC.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
