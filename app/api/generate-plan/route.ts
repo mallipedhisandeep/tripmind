@@ -1,30 +1,17 @@
-import { createClient } from '@supabase/supabase-js'
-import { generateTripPlan } from '@/lib/gemini'
+import { createClient } from '@/lib/supabase/server'
+import { generateTripPlan } from '@/lib/ai'
+// NOTE: delete lib/gemini.ts — it has been replaced by lib/ai.ts
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { tripId, accessToken } = await request.json()
-
-    if (!tripId) return NextResponse.json({ error: 'Trip ID required' }, { status: 400 })
-    if (!accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    // Use service-level client authenticated with user's access token
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
-      }
-    )
-
-    // Verify token by getting user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken)
+    const supabase = createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Fetch the trip
+    const { tripId } = await request.json()
+    if (!tripId) return NextResponse.json({ error: 'Trip ID required' }, { status: 400 })
+
     const { data: trip, error: tripError } = await supabase
       .from('trips')
       .select('*')
@@ -34,31 +21,42 @@ export async function POST(request: Request) {
 
     if (tripError || !trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
 
-    // Check regen limit
+    // Check regen limit for free users; also verify pro subscription has not expired
     if (trip.regen_count >= 3) {
       const { data: profile } = await supabase
-        .from('profiles').select('is_pro').eq('id', user.id).single()
-      if (!profile?.is_pro) {
+        .from('profiles')
+        .select('is_pro, pro_expires_at')
+        .eq('id', user.id)
+        .single()
+
+      const isPro =
+        profile?.is_pro &&
+        profile?.pro_expires_at &&
+        new Date(profile.pro_expires_at) > new Date()
+
+      if (!isPro) {
         return NextResponse.json({ error: 'REGEN_LIMIT_REACHED' }, { status: 403 })
       }
     }
 
-    // Get user preferences
     const { data: profile } = await supabase
-      .from('profiles').select('*').eq('id', user.id).single()
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-    const userPreferences = profile ? `
+    const userPreferences = profile
+      ? `
       Home city: ${profile.home_city}
       Travel style: ${profile.travel_style}
       Group type: ${profile.group_type}
       Interests: ${profile.interests?.join(', ')}
       Preferred transport: ${profile.preferred_transport}
-    ` : undefined
+    `
+      : undefined
 
-    // Generate plan via Gemini
     const generatedPlan = await generateTripPlan(trip.form_data, userPreferences)
 
-    // Save to DB
     const { error: updateError } = await supabase
       .from('trips')
       .update({
