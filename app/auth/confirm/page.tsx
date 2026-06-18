@@ -1,61 +1,63 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useRef, useState, Suspense, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 function ConfirmInner() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState('Signing you in...')
+  const ran = useRef(false)
 
-  useEffect(() => {
-    const handleConfirm = async () => {
-      const supabase = createClient()
-      const code = searchParams.get('code')
+  const handleConfirm = useCallback(async () => {
+    if (ran.current) return
+    ran.current = true
 
-      if (!code) {
-        window.location.href = '/login?error=no_code'
+    const supabase = createClient()
+    const code = searchParams.get('code')
+
+    if (!code) {
+      window.location.href = '/login?error=no_code'
+      return
+    }
+
+    try {
+      setStatus('Completing Google sign in...')
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+      if (error) {
+        console.error('Exchange error:', error.message)
+        window.location.href = `/login?error=${encodeURIComponent(error.message)}`
         return
       }
 
-      try {
-        setStatus('Completing Google sign in...')
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-
-        if (error) {
-          console.error('Exchange error:', error.message)
-          window.location.href = `/login?error=${encodeURIComponent(error.message)}`
-          return
-        }
-
-        if (!data.user) {
-          window.location.href = '/login?error=no_user'
-          return
-        }
-
-        setStatus('Setting up your profile...')
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('onboarding_complete')
-          .eq('id', data.user.id)
-          .single()
-
-        // Full page reload so server sees the new session cookie
-        if (!profile?.onboarding_complete) {
-          window.location.href = '/onboarding'
-        } else {
-          window.location.href = '/dashboard'
-        }
-
-      } catch (err: any) {
-        console.error('Confirm error:', err)
-        window.location.href = `/login?error=${encodeURIComponent(err.message || 'unknown')}`
+      if (!data.user) {
+        window.location.href = '/login?error=no_user'
+        return
       }
-    }
 
+      setStatus('Setting up your profile...')
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_complete')
+        .eq('id', data.user.id)
+        .single()
+
+      if (!profile?.onboarding_complete) {
+        window.location.href = '/onboarding'
+      } else {
+        window.location.href = '/dashboard'
+      }
+    } catch (err: any) {
+      console.error('Confirm error:', err)
+      window.location.href = `/login?error=${encodeURIComponent(err.message || 'unknown')}`
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     handleConfirm()
-  }, [])
+  }, [handleConfirm])
 
   return (
     <div style={{
