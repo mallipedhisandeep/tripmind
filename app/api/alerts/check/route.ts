@@ -8,11 +8,6 @@ import {
   flightPriceMsg,
 } from '@/lib/whatsapp'
 
-/**
- * GET /api/alerts/check
- * Called by a Vercel cron job (vercel.json) or external scheduler.
- * Protect with a shared secret via CRON_SECRET env var.
- */
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret')
   if (secret !== process.env.CRON_SECRET) {
@@ -21,7 +16,6 @@ export async function GET(req: NextRequest) {
 
   const supabase = createClient()
 
-  // Fetch all active, un-notified items
   const { data: items, error } = await supabase
     .from('watchlist')
     .select('*')
@@ -34,7 +28,6 @@ export async function GET(req: NextRequest) {
   let notified = 0
 
   for (const item of items) {
-    // ── Update last_checked_at ────────────────────────────────
     await supabase
       .from('watchlist')
       .update({ last_checked_at: new Date().toISOString() })
@@ -42,9 +35,6 @@ export async function GET(req: NextRequest) {
 
     if (!item.whatsapp_number) continue
 
-    // ── Mock availability check ───────────────────────────────
-    // Replace each block below with a real API call to IRCTC, 
-    // MakeMyTrip, temple booking sites, etc.
     const isAvailable = await checkAvailability(item.type, item.params, item.target_price)
 
     if (isAvailable) {
@@ -68,6 +58,7 @@ export async function GET(req: NextRequest) {
 
       try {
         await sendWhatsApp(item.whatsapp_number, msg)
+        // Mark notified; reset to false when the user wants recurring alerts
         await supabase.from('watchlist').update({ notified: true }).eq('id', item.id)
         notified++
       } catch (e) {
@@ -80,21 +71,39 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * PLACEHOLDER: Replace with real availability checks.
- * Return true if the user should be notified.
+ * Replace each case with a real API call before enabling in production.
+ * Gate behind AVAILABILITY_CHECK_ENABLED=true to prevent random alerts in dev/staging.
+ *
+ * train_seat   → IRCTC / RailConnect API
+ * darshan_slot → temple booking site scraper / API
+ * hotel_price  → MakeMyTrip / Goibibo API
+ * flight_price → Skyscanner / Amadeus API
+ * bus_seat     → redBus API
  */
 async function checkAvailability(
   type: string,
   params: Record<string, any>,
   targetPrice?: number
 ): Promise<boolean> {
-  // TODO: integrate real APIs
-  // train_seat    → IRCTC / RailConnect API
-  // darshan_slot  → temple booking site scraper / API
-  // hotel_price   → MakeMyTrip / Goibibo API
-  // flight_price  → Skyscanner / Amadeus API
-  // bus_seat      → redBus API
+  if (process.env.AVAILABILITY_CHECK_ENABLED !== 'true') {
+    return false
+  }
 
-  // Simulated: randomly trigger 10% of the time during development
-  return Math.random() < 0.1
+  // TODO: replace stubs below with real API integrations
+  switch (type) {
+    case 'train_seat':
+      // e.g. return await irctcCheckAvailability(params)
+      return false
+    case 'darshan_slot':
+      // e.g. return await templeCheckSlot(params)
+      return false
+    case 'hotel_price':
+      // e.g. return await hotelCheckPrice(params, targetPrice)
+      return false
+    case 'flight_price':
+      // e.g. return await flightCheckPrice(params, targetPrice)
+      return false
+    default:
+      return false
+  }
 }
