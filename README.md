@@ -94,4 +94,4 @@ tripmind/
 
 Built by Sandeep · TripMind 2026
 
-for indian travellers
+for indian travellers...
