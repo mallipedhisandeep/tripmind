@@ -1,10 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, RefreshCw, ExternalLink, MapPin, Train, Hotel, Utensils, Lightbulb, AlertTriangle, Cloud } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ExternalLink, MapPin, Train, Hotel, Utensils, Lightbulb, AlertTriangle, Cloud, Download, Users, Share2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GeneratedPlan } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+import SharePanel from './SharePanel'
+import GroupPlanningPanel from './GroupPlanningPanel'
 
 const STAGES = ['Fetching train data...','Looking up temple timings...','Finding local food...','Calculating route...','Personalising for you...','Building your plan...']
 
@@ -47,6 +50,7 @@ function Loader({ pct, stage }: { pct: number; stage: number }) {
 }
 
 export default function PlanClient({ trip, isGenerating }: { trip: any; isGenerating: boolean }) {
+  const router = useRouter()
   const [plan, setPlan] = useState<GeneratedPlan | null>(trip.generated_plan || null)
   const [loading, setLoading] = useState(isGenerating && !trip.generated_plan)
   const [pct, setPct] = useState(0)
@@ -55,8 +59,42 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
   const [regenCount, setRegenCount] = useState(trip.regen_count || 0)
   const [showUpgrade, setShowUpgrade] = useState(false)
   const [regenLoading, setRegenLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [showGroupPanel, setShowGroupPanel] = useState(false)
+  const [showSharePanel, setShowSharePanel] = useState(false)
 
   useEffect(() => { if (loading) doGenerate() }, [])
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch('/api/plan/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trip_id: trip.id }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Export failed')
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename="(.+)"/)
+      const filename = match ? match[1] : `tripmind-${trip.destination || 'trip'}.pdf`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to download. Try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const animatePct = (onDone: () => void) => {
     let p = 0
@@ -78,7 +116,7 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
         const res = await fetch('/api/generate-plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripId: trip.id, accessToken: session.access_token }),
+          body: JSON.stringify({ tripId: trip.id }),
         })
         const data = await res.json()
 
@@ -186,7 +224,7 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
               <div style={{ ...card, marginBottom: 14 }}>
                 <div className="label" style={{ marginBottom: 16 }}>Budget Breakdown</div>
                 {Object.entries(plan.budget_breakdown).map(([k, v]: [string, any]) => {
-                  const pct = Math.round((v / total) * 100)
+                  const pct = total > 0 ? Math.round((v / total) * 100) : 0
                   return (
                     <div key={k} style={{ marginBottom: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
@@ -337,6 +375,35 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
                 </div>
               )}
 
+              {/* ACTIONS: Export / Share / Group */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, marginBottom: 14 }}>
+                <button onClick={handleExport} disabled={exporting} className="btn-ghost" style={{ flex: 1, padding: '11px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                  <Download style={{ width: 14, height: 14 }} /> {exporting ? 'Preparing...' : 'Download PDF'}
+                </button>
+                <button onClick={() => setShowSharePanel(s => !s)} className="btn-ghost" style={{ flex: 1, padding: '11px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                  <Share2 style={{ width: 14, height: 14 }} /> Share
+                </button>
+                <button onClick={() => setShowGroupPanel(s => !s)} className="btn-ghost" style={{ flex: 1, padding: '11px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                  <Users style={{ width: 14, height: 14 }} /> Group
+                </button>
+              </div>
+
+              {showSharePanel && (
+                <div style={{ marginBottom: 14 }}>
+                  <SharePanel
+                    tripId={trip.id}
+                    initialShareEnabled={!!trip.share_enabled}
+                    initialShareToken={trip.share_token}
+                  />
+                </div>
+              )}
+
+              {showGroupPanel && (
+                <div style={{ marginBottom: 14 }}>
+                  <GroupPlanningPanel tripId={trip.id} destination={trip.destination || plan.destination} />
+                </div>
+              )}
+
               {/* REGEN */}
               <div style={{ ...card, borderColor: regenCount >= 3 ? 'rgba(251,113,133,0.2)' : 'var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -381,8 +448,8 @@ export default function PlanClient({ trip, isGenerating }: { trip: any; isGenera
               ))}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button className="btn-gold" style={{ width: '100%', padding: '13px' }}>Start Pro — ₹99/month</button>
-              <button className="btn-ghost" style={{ width: '100%', padding: '12px', fontSize: 13 }}>₹799/year (save 33%)</button>
+              <button onClick={() => router.push('/upgrade?plan=monthly')} className="btn-gold" style={{ width: '100%', padding: '13px' }}>Start Pro — ₹99/month</button>
+              <button onClick={() => router.push('/upgrade?plan=yearly')} className="btn-ghost" style={{ width: '100%', padding: '12px', fontSize: 13 }}>₹799/year (save 33%)</button>
               <button onClick={() => setShowUpgrade(false)} style={{ background: 'none', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: 13, padding: '8px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Maybe later</button>
             </div>
           </motion.div>
