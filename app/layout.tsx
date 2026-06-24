@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Toaster } from 'react-hot-toast'
+import { I18nProvider } from '@/lib/i18n'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -23,15 +24,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
       <body>
-        {children}
-        <Toaster position="top-center" toastOptions={{
-          style: {
-            background: '#111116', color: '#f0f0f8',
-            border: '1px solid #252530',
-            fontFamily: 'Plus Jakarta Sans, sans-serif',
-            fontSize: '13px', borderRadius: '12px',
-          },
-        }} />
+        <I18nProvider>
+          {children}
+          <Toaster position="top-center" toastOptions={{
+            style: {
+              background: '#111116', color: '#f0f0f8',
+              border: '1px solid #252530',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              fontSize: '13px', borderRadius: '12px',
+            },
+          }} />
+        </I18nProvider>
       </body>
     </html>
   )
