@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 
 declare global {
@@ -18,8 +19,22 @@ const FEATURES = [
 ]
 
 export default function UpgradePage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-500 text-sm">Loading...</div>
+      </main>
+    }>
+      <UpgradePageInner />
+    </Suspense>
+  )
+}
+
+function UpgradePageInner() {
   const { t } = useI18n()
-  const [plan, setPlan]       = useState<'monthly' | 'yearly'>('yearly')
+  const searchParams = useSearchParams()
+  const initialPlan = searchParams.get('plan') === 'monthly' ? 'monthly' : 'yearly'
+  const [plan, setPlan]       = useState<'monthly' | 'yearly'>(initialPlan)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError]     = useState('')
