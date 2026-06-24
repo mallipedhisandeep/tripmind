@@ -32,10 +32,17 @@ export default function PlanNewClient() {
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
   const today = new Date().toISOString().split('T')[0]
 
+  const computeEnd = (start: string, days: number) => {
+    const startD = new Date(start)
+    const end = new Date(startD)
+    end.setDate(end.getDate() + days - 1)
+    return end.toISOString().split('T')[0]
+  }
+
   const [form, setForm] = useState<TripForm>({
     from: searchParams.get('from') || '',
     to: searchParams.get('to') || '',
-    start_date: tomorrow, end_date: '',
+    start_date: tomorrow, end_date: computeEnd(tomorrow, 2),
     days: 2, travelers: 2,
     group_type: 'family_kids', age_groups: ['Adults (18–40)'],
     budget: 'moderate', interests: ['Temples'],
@@ -60,21 +67,11 @@ export default function PlanNewClient() {
   }, [])
 
   const setDays = (days: number) => {
-    setForm(f => {
-      const start = new Date(f.start_date || tomorrow)
-      const end = new Date(start)
-      end.setDate(end.getDate() + days - 1)
-      return { ...f, days, end_date: end.toISOString().split('T')[0] }
-    })
+    setForm(f => ({ ...f, days, end_date: computeEnd(f.start_date || tomorrow, days) }))
   }
 
   const setStart = (date: string) => {
-    setForm(f => {
-      const start = new Date(date)
-      const end = new Date(start)
-      end.setDate(end.getDate() + f.days - 1)
-      return { ...f, start_date: date, end_date: end.toISOString().split('T')[0] }
-    })
+    setForm(f => ({ ...f, start_date: date, end_date: computeEnd(date, f.days) }))
   }
 
   const toggleArr = (key: 'interests' | 'age_groups', val: string) =>
