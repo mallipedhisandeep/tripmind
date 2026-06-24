@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateTripPlan } from '@/lib/ai'
-// NOTE: delete lib/gemini.ts — it has been replaced by lib/ai.ts
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
