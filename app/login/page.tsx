@@ -16,10 +16,11 @@ export default function LoginPage() {
 
   const handleGoogle = async () => {
     setLoading(true)
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://tripmind-six.vercel.app/auth/callback',
+        redirectTo: `${siteUrl}/auth/callback`,
         queryParams: { prompt: 'select_account' },
       },
     })
