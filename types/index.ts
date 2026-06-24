@@ -16,6 +16,7 @@ export interface UserProfile {
   onboarding_complete: boolean
   is_pro: boolean
   pro_expires_at?: string
+  whatsapp_number?: string
   lang: Lang
   created_at: string
 }
