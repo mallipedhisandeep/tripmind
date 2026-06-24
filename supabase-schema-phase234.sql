@@ -17,6 +17,13 @@ ALTER TABLE trips
 
 CREATE INDEX IF NOT EXISTS idx_trips_share_token ON trips (share_token);
 
+-- Allow anyone (including unauthenticated visitors) to read a trip
+-- when its owner has explicitly enabled sharing. Required for the
+-- public /share/[token] page, which has no logged-in user.
+CREATE POLICY "Anyone can view a shared trip"
+  ON trips FOR SELECT
+  USING (share_enabled = TRUE);
+
 -- ── 3. Watchlist ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS watchlist (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -104,3 +111,26 @@ CREATE POLICY "Users see own payments"
 CREATE POLICY "Service inserts payments"
   ON payments FOR INSERT
   WITH CHECK (TRUE);
+
+-- ── 6. Invite acceptance (group planning) ────────────────────
+-- An authenticated user may look up a pending invite addressed to
+-- their own email, by token, even before they are linked via user_id.
+CREATE POLICY "Invitee can view own pending invite"
+  ON trip_members FOR SELECT
+  USING (
+    accepted = FALSE
+    AND lower(email) = lower((SELECT email FROM auth.users WHERE id = auth.uid()))
+  );
+
+-- An authenticated user may claim (accept) a pending invite addressed
+-- to their own email, by token. This only allows setting user_id to
+-- themselves and accepted to true on a row matching their own email.
+CREATE POLICY "Invitee can accept own pending invite"
+  ON trip_members FOR UPDATE
+  USING (
+    accepted = FALSE
+    AND lower(email) = lower((SELECT email FROM auth.users WHERE id = auth.uid()))
+  )
+  WITH CHECK (
+    user_id = auth.uid()
+  );
