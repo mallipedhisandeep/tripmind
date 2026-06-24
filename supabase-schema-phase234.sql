@@ -1,6 +1,8 @@
 -- ============================================================
 -- TripMind — Phase 2 / 3 / 4 schema additions
 -- Run this in Supabase SQL Editor AFTER the original schema
+-- Safe to re-run: every CREATE POLICY is preceded by a matching
+-- DROP POLICY IF EXISTS, and tables/columns use IF NOT EXISTS.
 -- ============================================================
 
 -- ── 1. Extend profiles ──────────────────────────────────────
@@ -20,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_trips_share_token ON trips (share_token);
 -- Allow anyone (including unauthenticated visitors) to read a trip
 -- when its owner has explicitly enabled sharing. Required for the
 -- public /share/[token] page, which has no logged-in user.
+DROP POLICY IF EXISTS "Anyone can view a shared trip" ON trips;
 CREATE POLICY "Anyone can view a shared trip"
   ON trips FOR SELECT
   USING (share_enabled = TRUE);
@@ -44,6 +47,7 @@ CREATE TABLE IF NOT EXISTS watchlist (
 
 ALTER TABLE watchlist ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users manage own watchlist" ON watchlist;
 CREATE POLICY "Users manage own watchlist"
   ON watchlist FOR ALL
   USING (auth.uid() = user_id);
@@ -64,6 +68,7 @@ CREATE TABLE IF NOT EXISTS trip_members (
 ALTER TABLE trip_members ENABLE ROW LEVEL SECURITY;
 
 -- Members can view their own row; only the trip owner can INSERT / UPDATE / DELETE
+DROP POLICY IF EXISTS "Members can view own membership" ON trip_members;
 CREATE POLICY "Members can view own membership"
   ON trip_members FOR SELECT
   USING (
@@ -71,12 +76,14 @@ CREATE POLICY "Members can view own membership"
     OR auth.uid() = (SELECT user_id FROM trips WHERE id = trip_id)
   );
 
+DROP POLICY IF EXISTS "Trip owner manages members" ON trip_members;
 CREATE POLICY "Trip owner manages members"
   ON trip_members FOR INSERT
   WITH CHECK (
     auth.uid() = (SELECT user_id FROM trips WHERE id = trip_id)
   );
 
+DROP POLICY IF EXISTS "Trip owner updates members" ON trip_members;
 CREATE POLICY "Trip owner updates members"
   ON trip_members FOR UPDATE
   USING (
@@ -84,6 +91,7 @@ CREATE POLICY "Trip owner updates members"
   );
 
 -- Only the trip owner can remove members (fixes IDOR at DB level)
+DROP POLICY IF EXISTS "Trip owner deletes members" ON trip_members;
 CREATE POLICY "Trip owner deletes members"
   ON trip_members FOR DELETE
   USING (
@@ -104,10 +112,12 @@ CREATE TABLE IF NOT EXISTS payments (
 
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users see own payments" ON payments;
 CREATE POLICY "Users see own payments"
   ON payments FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Service inserts payments" ON payments;
 CREATE POLICY "Service inserts payments"
   ON payments FOR INSERT
   WITH CHECK (TRUE);
@@ -115,6 +125,7 @@ CREATE POLICY "Service inserts payments"
 -- ── 6. Invite acceptance (group planning) ────────────────────
 -- An authenticated user may look up a pending invite addressed to
 -- their own email, by token, even before they are linked via user_id.
+DROP POLICY IF EXISTS "Invitee can view own pending invite" ON trip_members;
 CREATE POLICY "Invitee can view own pending invite"
   ON trip_members FOR SELECT
   USING (
@@ -125,6 +136,7 @@ CREATE POLICY "Invitee can view own pending invite"
 -- An authenticated user may claim (accept) a pending invite addressed
 -- to their own email, by token. This only allows setting user_id to
 -- themselves and accepted to true on a row matching their own email.
+DROP POLICY IF EXISTS "Invitee can accept own pending invite" ON trip_members;
 CREATE POLICY "Invitee can accept own pending invite"
   ON trip_members FOR UPDATE
   USING (
